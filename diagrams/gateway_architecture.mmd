@@ -1,0 +1,40 @@
+```mermaid
+flowchart LR
+    subgraph Clients ["Engineering Applications"]
+        App1["Billing Microservice (Python)"]
+        App2["Customer Chatbot (TypeScript)"]
+        App3["Analytics Batch Pipeline"]
+    end
+
+    subgraph Gateway ["LLM Gateway Layer (LiteLLM Proxy / OpenRouter)"]
+        direction TB
+        Auth["Virtual Key Auth & Spend Quota"]
+        Router["Model Router & Dynamic Fallbacks"]
+        Cache["Shared Semantic / Exact Cache"]
+        Telemetry["Cost Accounting & Latency Tracking"]
+        
+        Auth --> Router
+        Router --> Cache
+        Cache --> Telemetry
+    end
+
+    subgraph Providers ["Upstream Foundation Model Providers"]
+        OpenAI["OpenAI (GPT-4o, o1/o3)"]
+        Anthropic["Anthropic (Claude 3.5 Sonnet)"]
+        Google["Google Gemini (Flash / Pro)"]
+        OpenSource["Self-Hosted / DeepSeek / Mistral"]
+    end
+
+    App1 -->|"Unified OpenAI-Compatible Wire Protocol"| Auth
+    App2 -->|"Unified OpenAI-Compatible Wire Protocol"| Auth
+    App3 -->|"Unified OpenAI-Compatible Wire Protocol"| Auth
+
+    Telemetry -->|"Direct SDK Call"| OpenAI
+    Telemetry -->|"Direct SDK Call"| Anthropic
+    Telemetry -->|"Direct SDK Call"| Google
+    Telemetry -->|"vLLM / TGI Call"| OpenSource
+
+    classDef gw fill:#e8f4f8,stroke:#17a2b8,stroke-width:2px;
+    class Gateway gw;
+```
+
