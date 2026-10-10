@@ -31,7 +31,8 @@
     "test:lab03": "cross-env NODE_PATH=node_modules tsx --test ../exercises/lab03_resilience_cascade/typescript/testCascade.ts",
     "test:lab04": "cross-env NODE_PATH=node_modules tsx --test ../exercises/lab04_batch_pipeline/typescript/testBatch.ts",
     "test:lab05": "cross-env NODE_PATH=node_modules tsx --test ../exercises/lab05_langgraph_recovery/typescript/testRecovery.ts",
-    "test:logger": "cross-env NODE_PATH=node_modules tsx --test testStructuredLogger.ts"
+    "test:logger": "cross-env NODE_PATH=node_modules tsx --test testStructuredLogger.ts",
+    "test:otel": "cross-env NODE_PATH=node_modules tsx --test testOtelBridge.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",

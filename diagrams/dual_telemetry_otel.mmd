@@ -1,0 +1,62 @@
+```mermaid
+flowchart TD
+    subgraph AgentCore ["Enterprise Agent Runtime (LangChain & LangGraph)"]
+        direction TB
+        StateGraph["LangGraph StateGraph / Agent Node"]
+        Checkpointer[("SQLite Checkpointer\n(thread_id & state durability)")]
+        Tools["Tools Execution\n(CRM, Billing, Network API)"]
+        LLM["Foundation Model Call\n(OpenAI / Anthropic / Gemini)"]
+
+        StateGraph <--> Checkpointer
+        StateGraph --> LLM
+        StateGraph --> Tools
+    end
+
+    subgraph TelemetryHub ["Unified Dual/Triple Telemetry Layer"]
+        direction TB
+        Callbacks["LangChain Callback Dispatcher\n(RunTree & Event Multiplexer)"]
+        PIIFilter["PII Sanitizer & Redaction Filter\n([REDACTED_EMAIL], [REDACTED_CREDENTIAL])"]
+        
+        StateGraph --> Callbacks
+        Callbacks --> PIIFilter
+    end
+
+    subgraph Channel1 ["Channel 1: SaaS Tracing & Evaluation"]
+        LangSmith["LangSmith Cloud / Self-Hosted\n- Visual RunTree Hierarchy\n- Token / Cost Heatmaps\n- Online Evaluation & Feedback\n- Prompt Playground Replay"]
+    end
+
+    subgraph Channel2 ["Channel 2: In-Band Enterprise Structured Logging"]
+        direction TB
+        LocalLog["NDJSON Formatter (stdout / file)\n{timestamp, level, event, correlation, payload}"]
+        Collector["Log Shipper (FluentBit / Vector / Logstash)"]
+        SIEM["Corporate SIEM & Compliance\n(Splunk, Datadog, ELK, CloudWatch)\n- 1-7 Year Cold Audit Vault\n- Real-time Alerting & Anomalies"]
+
+        LocalLog --> Collector
+        Collector --> SIEM
+    end
+
+    subgraph Channel3 ["Channel 3: OpenTelemetry GenAI Standards"]
+        direction TB
+        OTelBridge["OTel GenAI Bridge Callback Handler\n(gen_ai.system, gen_ai.request.model,\ngen_ai.usage.prompt_tokens)"]
+        OTelCollector["OpenTelemetry Collector (OTLP / gRPC)"]
+        APM["Enterprise APM & Tracing\n(Jaeger, Dynatrace, Prometheus, Grafana)"]
+
+        OTelBridge --> OTelCollector
+        OTelCollector --> APM
+    end
+
+    Callbacks -->|"Out-of-Band REST / gRPC\n(Asynchronous Queue)"| LangSmith
+    PIIFilter -->|"In-Band Synchronous\nZero Network Egress"| LocalLog
+    PIIFilter -->|"OTLP Spans\n(Context Propagated)"| OTelBridge
+
+    classDef core fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
+    classDef saas fill:#ede7f6,stroke:#512da8,stroke-width:2px;
+    classDef siem fill:#e8f5e9,stroke:#388e3c,stroke-width:2px;
+    classDef otel fill:#fff3e0,stroke:#f57c00,stroke-width:2px;
+
+    class AgentCore core;
+    class Channel1 saas;
+    class Channel2 siem;
+    class Channel3 otel;
+```
+

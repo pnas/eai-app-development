@@ -7,6 +7,12 @@ from src.langchain_suite.core.structured_logger import (
     get_structured_logger,
     PIIScrubber,
 )
+from src.langchain_suite.core.otel_bridge import (
+    OpenTelemetryGenAICallbackHandler,
+    OpenTelemetrySpan,
+    generate_trace_id,
+    generate_span_id,
+)
 
 __all__ = [
     "get_chat_model",
@@ -16,4 +22,8 @@ __all__ = [
     "StructuredLoggingCallbackHandler",
     "get_structured_logger",
     "PIIScrubber",
+    "OpenTelemetryGenAICallbackHandler",
+    "OpenTelemetrySpan",
+    "generate_trace_id",
+    "generate_span_id",
 ]

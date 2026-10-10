@@ -38,13 +38,14 @@ This curriculum is designed for **Senior Software Engineers, Backend Architects,
 | Time | Topic | Format | Deliverables / Labs |
 | :--- | :--- | :--- | :--- |
 | **09:00 - 09:15** | Day 1 Recap & Warmup | Discussion | Quick review of prefix caching & schema strictness |
-| **09:15 - 10:45** | **Module 4: Asynchronous Batch Inference** | Lecture + Code | `04_batch_inference.md`, 50% discount arbitrage, batch orchestrator |
-| **10:45 - 11:00** | *Morning Break* | - | - |
-| **11:00 - 12:30** | **Module 5: Error Taxonomy & Distributed Resilience** | Lecture + Code | `05_error_handling_resilience.md`, 429 stampedes, Jitter, Circuit Breakers |
-| **12:30 - 13:30** | *Lunch Break* | - | - |
-| **13:30 - 15:00** | **Hands-on Lab 2: Rate Limiter & Circuit Breaker Cascade** | Hands-on Lab | `exercises/lab01_rate_limiter` & `lab03_resilience_cascade` |
-| **15:00 - 16:15** | **Module 6: Gateways & Unit Economics** | Lecture + Code | `06_gateways_and_cost_optimization.md`, LiteLLM proxy, unit pricing |
-| **16:15 - 17:00** | Final Capstone Review & Certification | Presentation | Student architecture presentations & production checklists |
+| **09:15 - 10:30** | **Module 4: Asynchronous Batch Inference** | Lecture + Code | `04_batch_inference.md`, 50% discount arbitrage, batch orchestrator |
+| **10:30 - 10:45** | *Morning Break* | - | - |
+| **10:45 - 12:15** | **Module 5: Resilience, Circuit Breakers & Agent State Recovery** | Lecture + Code | `05_error_handling_resilience.md`, 429 stampedes, Circuit Breakers, LangGraph SQLite checkpointer |
+| **12:15 - 13:15** | *Lunch Break* | - | - |
+| **13:15 - 14:30** | **Hands-on Lab: Resilience Cascade & Agent Crash Recovery** | Hands-on Lab | `exercises/lab03_resilience_cascade` & `exercises/lab05_langgraph_recovery` |
+| **14:30 - 15:45** | **Module 6: Gateways, Dual Telemetry & OpenTelemetry** | Lecture + Code | `06_gateways_and_cost_optimization.md`, LiteLLM proxy, LangSmith + SIEM logging, OTel bridge |
+| **15:45 - 16:00** | *Afternoon Break* | - | - |
+| **16:00 - 17:00** | Final Capstone Review & Certification | Presentation | Architecture presentations, telemetry dashboards & production checklists |
 
 ---
 
@@ -84,25 +85,29 @@ This curriculum is designed for **Senior Software Engineers, Backend Architects,
   - The SLA trade-off: 24-hour SLA vs real-world turnaround (usually 5 to 45 minutes).
   - Why line-level failure isolation in JSONL is superior to transactional all-or-nothing batching.
 
-### Module 5: Error Taxonomy & Distributed Resilience
+### Module 5: Error Taxonomy, Circuit Breakers & Stateful Agent Recovery
 * **Core Insight**: Standard exponential backoff causes synchronized herds ("the thundering herd") that kill struggling upstream providers. Full jitter or decorrelated jitter is mandatory.
 * **Live Experiment**:
   - Run `src.m05_resilience.circuit_breaker`.
   - Simulate 5 consecutive 503 errors and watch the circuit breaker trip to `OPEN` state, instantly fast-failing traffic without saturating the upstream socket pool.
-* **Discussion Prompt**:
-  - *"Why is HTTP 529 (Anthropic Overloaded) fundamentally different from HTTP 429 (Rate Limit)?"*
-  - Answer: 429 is client-specific (quota/tokens). 529 is provider cluster saturation; retrying 529 immediately causes catastrophic cascade.
+* **Agent State Persistence Insight**:
+  - Contrast ephemeral memory with durable state: what happens if the worker process restarts mid-flight during a 10-step agent loop?
+  - Demonstrate `src.langchain_suite.agent_recovery.recover_demo`: showing how a process interrupted during tool calling seamlessly recovers from SQLite checkpointer (`SqliteSaver`) using `thread_id` without re-running earlier steps.
 
-### Module 6: Gateways & Unit Economics
-* **Core Insight**: Direct SDK imports create vendor lock-in. A unified gateway interface (LiteLLM / OpenRouter) decouples application code from provider billing and failure domains.
-* **Key Takeaway**:
-  - Explain the difference between client-side routing (Python library `litellm`) and centralized network proxy (`litellm-proxy` running in Kubernetes).
+### Module 6: Gateways, Unit Economics & Dual Telemetry (LangSmith + SIEM + OTel)
+* **Core Insight**: Direct SDK imports create vendor lock-in; gateways provide proxy routing, but internal agent loops remain opaque unless instrumented with dual telemetry.
+* **The Dual Telemetry Architecture**:
+  - **LangSmith**: Visual RunTree graphs, prompt evaluation datasets, and latency percentiles for AI engineers.
+  - **Structured JSON Logging**: In-band synchronous NDJSON logs for SecOps, SIEM (Splunk/Datadog/CloudWatch), and 1–7 year immutable audit compliance.
+  - **OpenTelemetry Bridge**: OTel GenAI Semantic Conventions (`gen_ai.system`, `gen_ai.request.model`, `gen_ai.usage.prompt_tokens`) exported to OTel Collector & APMs.
+* **Edge PII Redaction Demo**:
+  - Demonstrate `PIIScrubber` masking emails, phone numbers, and bearer credentials *before* logs leave process memory.
 
 ---
 
 ## 4. Student Lab Assignments & Rubric
 
-The `exercises/` directory contains four production engineering challenges:
+The `exercises/` directory contains five production engineering challenges:
 
 1. **Lab 1: Token-Bucket Rate Limiter & Jittered Backoff (`exercises/lab01_rate_limiter`)**
    - **Goal**: Implement a proactive token bucket in client code that enforces RPM/TPM limits and decorrelated jitter backoff.
@@ -119,6 +124,10 @@ The `exercises/` directory contains four production engineering challenges:
 4. **Lab 4: Batch API Cost Arbitrage Orchestrator (`exercises/lab04_batch_pipeline`)**
    - **Goal**: Ingest 1,000 synthetic records, format compliant JSONL payloads, handle partial failure responses, and output an audited cost reduction report.
    - **Passing Criteria**: Passes all tests in `test_batch.py` / `testBatch.ts`.
+
+5. **Lab 5: Fault-Tolerant State Machine & SQLite Crash Recovery (`exercises/lab05_langgraph_recovery`)**
+   - **Goal**: Build an autonomous LangGraph agent state machine with tool execution, SQLite checkpoint persistence, and process crash recovery that resumes unfinished threads without duplicating side effects.
+   - **Passing Criteria**: Passes all tests in `test_recovery.py` / `testRecovery.ts`.
 
 ---
 

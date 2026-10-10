@@ -19,8 +19,8 @@ An intensive, production-focused engineering curriculum, hands-on laboratory exe
 | **03** | **[Prompt Caching & KV-Cache](slides/03_prompt_caching_and_kvcache.md)** | GPU VRAM PagedAttention, Anthropic breakpoints, OpenAI prefix caching, Gemini Context Caching, 6 cache-breaking traps. | `python/src/m03_prompt_caching/` | `typescript/src/m03_prompt_caching/` |
 | **04** | **[Asynchronous Batch Inference](slides/04_batch_inference.md)** | 50% discount economics, JSONL batch pipelines, polling state machines, row-level dead letters. | `python/src/m04_batch_processing/` | `typescript/src/m04_batch_processing/` |
 | **05** | **[Resilience, Rate Limits & Errors](slides/05_error_handling_resilience.md)** | 400/429/500/529 HTTP taxonomy, Exponential Backoff with Full Jitter, Circuit Breakers, Multi-provider Fallback Cascade. | `python/src/m05_resilience/` | `typescript/src/m05_resilience/` |
-| **06** | **[Gateways & Cost Optimization](slides/06_gateways_and_cost_optimization.md)** | LiteLLM proxy vs OpenRouter, virtual keys, dynamic model routing, and production cost reduction playbook. | `python/src/m06_gateways/` | `typescript/src/m06_gateways/` |
-| **LC** | **LangChain & LangGraph Suite** | High-level enterprise orchestration: unified chat streaming, telemetry callbacks, Pydantic v2 / Zod structured extraction, prompt caching blocks, concurrency-throttled batching, declarative fallback cascades, dynamic routers, and stateful tool-calling agents with SQLite crash recovery. | `python/src/langchain_suite/` | `typescript/src/langchain_suite/` |
+| **06** | **[Gateways & Observability](slides/06_gateways_and_cost_optimization.md)** | LiteLLM proxy vs OpenRouter, virtual keys, dynamic model routing, dual-telemetry (LangSmith + SIEM), and OpenTelemetry GenAI standards. | `python/src/m06_gateways/` | `typescript/src/m06_gateways/` |
+| **LC** | **LangChain & LangGraph Suite** | High-level enterprise orchestration: unified chat streaming, telemetry callbacks, Pydantic v2 / Zod structured extraction, prompt caching blocks, concurrency-throttled batching, declarative fallback cascades, dynamic routers, stateful tool-calling agents with SQLite crash recovery, and OpenTelemetry GenAI Semantic Conventions bridge. | `python/src/langchain_suite/` | `typescript/src/langchain_suite/` |
 
 ---
 
@@ -59,6 +59,7 @@ See **[INSTRUCTOR_GUIDE.md](./INSTRUCTOR_GUIDE.md)** for:
 
 ## 🏛️ System Architecture Diagrams
 
+- **[Dual-Telemetry & OpenTelemetry Architecture](diagrams/dual_telemetry_otel.mmd)**: Multiplexed telemetry pipeline: LangSmith visual tracing, in-band PII-scrubbed SIEM logs, and OTel GenAI standard spans.
 - **[KV-Cache vs Prompt Caching Architecture](diagrams/kv_cache_vs_prompt_cache.mmd)**: GPU memory block reuse vs cluster prefix hashing and cache-breaking factors.
 - **[Batch Inference Lifecycle](diagrams/batch_lifecycle.mmd)**: Sequence flow of asynchronous 50%-discount batch execution and polling.
 - **[Multi-Provider Fallback Cascade](diagrams/fallback_cascade.mmd)**: Resilient fallback flow between Claude, OpenAI, and Gemini with circuit breaker protection.
@@ -73,7 +74,7 @@ See **[INSTRUCTOR_GUIDE.md](./INSTRUCTOR_GUIDE.md)** for:
 2. **[Prompt Caching Rules & Pitfalls](docs/prompt_caching_rules.md)**: The 6 deadly mistakes that silently invalidate prompt caches.
 3. **[Error Handling & Rate Limits Cheat Sheet](docs/error_code_cheatsheet.md)**: HTTP status codes, headers, and retry strategies.
 4. **[Cost Optimization Playbook](docs/cost_optimization_guide.md)**: Tactical formulas to reduce LLM bills by 60%–85%.
-5. **[LangSmith & Enterprise Structured Logging Guide](docs/langsmith_and_structured_logging.md)**: Dual-telemetry architecture, RunTree hierarchy, PII redaction, and in-band SIEM log streams.
+5. **[LangSmith & Enterprise Structured Logging Guide](docs/langsmith_and_structured_logging.md)**: Dual-telemetry architecture, RunTree hierarchy, PII redaction, OpenTelemetry bridge, and in-band SIEM log streams.
 
 ---
 

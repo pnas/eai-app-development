@@ -83,3 +83,64 @@ cascade = FallbackCascade([
 response = cascade.execute(prompt)
 ```
 
+---
+
+# 5. Stateful Agent Resilience: Ephemeral vs. Durable State
+
+What happens when an agent executing a 10-step plan crashes at step 7?
+
+* **Ephemeral Memory (In-Memory lists/dicts)**:
+  - Process dies $\to$ entire conversation and intermediate tool outputs are lost.
+  - Retrying re-executes steps 1–6 (charging duplicate tokens and risking non-idempotent tool side-effects like duplicate billing).
+* **Durable State Machines (LangGraph Checkpointers)**:
+  - Every graph transition persists state snapshots to durable storage (`SqliteSaver`, Postgres, Redis).
+  - Crashes halt the process; restarting with the same `thread_id` resumes execution exactly at step 7 without re-running earlier steps.
+
+---
+
+# 6. LangGraph Checkpointing & SQLite Recovery
+
+```python
+from langgraph.checkpoint.sqlite import SqliteSaver
+from langgraph.graph import StateGraph
+
+# Attach persistent checkpointer to graph compilation
+with SqliteSaver.from_conn_string("agent_state.db") as memory:
+    app = workflow.compile(checkpointer=memory)
+    
+    # Thread ID scopes execution history and checkpoint sequence
+    config = {"configurable": {"thread_id": "cust-support-4091"}}
+    
+    # Run step 1: state is atomically saved to SQLite
+    app.invoke({"messages": [HumanMessage(content="Check my billing")]}, config)
+    
+    # Simulating a crash / restart: resume seamlessly
+    resumed_state = app.get_state(config)
+    print("Resuming from checkpoint:", resumed_state.next)
+```
+
+---
+
+# 7. Human-in-the-Loop (HITL) & Safe Resumption
+
+Combine durability with safety gates before dangerous or irreversible actions:
+
+```
+[User Request] ──► [Agent Planner] ──► [Inspect Balance]
+                                              │
+                                              ▼
+                                     [PAUSE: HITL Gate]
+                                     (Transfer > $1,000?)
+                                              │
+                          ┌───────────────────┴───────────────────┐
+                          ▼                                       ▼
+                   [Human Approves]                       [Human Rejects]
+                          │                                       │
+                          ▼                                       ▼
+                  [Execute Refund]                       [Cancel Operation]
+```
+
+* Graph stops execution using `interrupt_before=["refund_tool"]`.
+* Compliance officer inspects `app.get_state(config)`.
+* Officer approves: `app.invoke(None, config)` resumes exactly where it paused.
+

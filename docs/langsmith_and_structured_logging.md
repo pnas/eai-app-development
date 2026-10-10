@@ -169,3 +169,36 @@ For deployments where data must never leave a private network:
 2. **Masking at Source**: Configure `LANGCHAIN_HIDE_INPUTS=true` and `LANGCHAIN_HIDE_OUTPUTS=true` to send only latency, metadata, and token counters to LangSmith while keeping all raw text exclusively in local structured logs.
 3. **Pure In-Band Fallback**: If external tracing is completely disabled (`LANGCHAIN_TRACING_V2=false`), the application's `StructuredLoggingCallbackHandler` continues to capture 100% of the operational internals without code changes.
 
+---
+
+## 7. OpenTelemetry (OTel) GenAI Semantic Conventions Bridge
+
+In environments with unified vendor-neutral observability stacks (e.g. OpenTelemetry Collector feeding Jaeger, Prometheus, Dynatrace, or Google Cloud Trace), the course provides a specialized bridge:
+
+- **Python**: [`src.langchain_suite.core.otel_bridge.OpenTelemetryGenAICallbackHandler`](file:///c:/Users/PantelisNasikas/workspace/genai_agents_api/telekom_courses/advanced_ai_integration/python/src/langchain_suite/core/otel_bridge.py)
+- **TypeScript**: [`OpenTelemetryGenAICallbackHandler`](file:///c:/Users/PantelisNasikas/workspace/genai_agents_api/telekom_courses/advanced_ai_integration/typescript/src/langchain_suite/core/otelBridge.ts)
+
+### 7.1 Standard Attributes Captured
+| Attribute | Type | Example / Description |
+| :--- | :--- | :--- |
+| `gen_ai.system` | `string` | `"openai"`, `"anthropic"`, `"gemini"` |
+| `gen_ai.request.model` | `string` | Target model name (`"gpt-4o"`, `"claude-3-5-sonnet"`) |
+| `gen_ai.operation.name` | `string` | `"chat"`, `"execute_tool"`, `"workflow_step"` |
+| `gen_ai.usage.prompt_tokens` | `int` | Input token count |
+| `gen_ai.usage.completion_tokens`| `int` | Output token count |
+| `gen_ai.usage.total_tokens` | `int` | Sum of prompt and completion tokens |
+| `session.id` | `string` | Correlated `thread_id` from LangGraph checkpoint |
+| `service.name` | `string` | Microservice identifier (`"telekom-genai-service"`) |
+
+### 7.2 OTLP Exporter Integration
+Both Python and TypeScript implementations expose `export_otlp_payload()` / `exportOtlpPayload()`, generating standard OpenTelemetry Protocol (OTLP/HTTP JSON) trace bundles ready to be dispatched directly to an OpenTelemetry Collector daemon:
+
+```bash
+# Push generated trace spans to local or enterprise collector:
+curl -X POST http://otel-collector.internal:4318/v1/traces \
+  -H "Content-Type: application/json" \
+  -d @trace_payload.json
+```
+
+See the complete architectural flow in **[diagrams/dual_telemetry_otel.mmd](file:///c:/Users/PantelisNasikas/workspace/genai_agents_api/telekom_courses/advanced_ai_integration/diagrams/dual_telemetry_otel.mmd)**.
+
