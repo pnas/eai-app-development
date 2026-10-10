@@ -20,26 +20,28 @@ An intensive, production-focused engineering curriculum, hands-on laboratory exe
 | **04** | **[Asynchronous Batch Inference](slides/04_batch_inference.md)** | 50% discount economics, JSONL batch pipelines, polling state machines, row-level dead letters. | `python/src/m04_batch_processing/` | `typescript/src/m04_batch_processing/` |
 | **05** | **[Resilience, Rate Limits & Errors](slides/05_error_handling_resilience.md)** | 400/429/500/529 HTTP taxonomy, Exponential Backoff with Full Jitter, Circuit Breakers, Multi-provider Fallback Cascade. | `python/src/m05_resilience/` | `typescript/src/m05_resilience/` |
 | **06** | **[Gateways & Cost Optimization](slides/06_gateways_and_cost_optimization.md)** | LiteLLM proxy vs OpenRouter, virtual keys, dynamic model routing, and production cost reduction playbook. | `python/src/m06_gateways/` | `typescript/src/m06_gateways/` |
+| **LC** | **LangChain & LangGraph Suite** | High-level enterprise orchestration: unified chat streaming, telemetry callbacks, Pydantic v2 / Zod structured extraction, prompt caching blocks, concurrency-throttled batching, declarative fallback cascades, dynamic routers, and stateful tool-calling agents with SQLite crash recovery. | `python/src/langchain_suite/` | `typescript/src/langchain_suite/` |
 
 ---
 
 ## 🧪 Student Hands-on Engineering Labs
 
-The **[exercises/](./exercises)** directory contains 4 production-grade engineering challenges complete with starters (`TODO` markers), reference solutions, and automated test harnesses across both Python and TypeScript:
+The **[exercises/](./exercises)** directory contains 5 production-grade engineering challenges complete with starters (`TODO` markers), reference solutions, and automated test harnesses across both Python and TypeScript:
 
 1. **[Lab 01: Token-Bucket Rate Limiter & Jittered Retry](exercises/lab01_rate_limiter)**: Build proactive client-side rate limiters and decorrelated jitter to avoid HTTP 429 thundering herds.
 2. **[Lab 02: Prompt Cache Optimization & Audit](exercises/lab02_prompt_cache_audit)**: Audit a broken prompt assembly pipeline that suffers from timestamp injection and unstable serialization to achieve $\ge 90\%$ cache hit rates.
 3. **[Lab 03: Multi-Provider Fallback Cascade with Circuit Breakers](exercises/lab03_resilience_cascade)**: Implement a 3-tier cascade (Claude Sonnet $\to$ GPT-4o $\to$ Gemini Flash) with circuit breaker isolation.
 4. **[Lab 04: Batch API Cost Arbitrage Pipeline](exercises/lab04_batch_pipeline)**: Build an asynchronous batch ingestion engine with line error isolation and audited 50% cost savings.
+5. **[Lab 05: Fault-Tolerant State Machine & SQLite Crash Recovery](exercises/lab05_langgraph_recovery)**: Build a cyclical LangGraph state machine with tools routing, SQLite checkpointing, and process crash recovery.
 
 ### Running Laboratory Tests
 
 ```powershell
-# Python Stack (uv + pytest):
+# Python Stack (uv + pytest - runs all 5 labs):
 cd python
 uv run pytest ../exercises/
 
-# TypeScript Stack (Node.js 24 + tsx):
+# TypeScript Stack (Node.js 24 + tsx - runs all 5 labs):
 cd typescript
 npm test
 ```
@@ -71,6 +73,7 @@ See **[INSTRUCTOR_GUIDE.md](./INSTRUCTOR_GUIDE.md)** for:
 2. **[Prompt Caching Rules & Pitfalls](docs/prompt_caching_rules.md)**: The 6 deadly mistakes that silently invalidate prompt caches.
 3. **[Error Handling & Rate Limits Cheat Sheet](docs/error_code_cheatsheet.md)**: HTTP status codes, headers, and retry strategies.
 4. **[Cost Optimization Playbook](docs/cost_optimization_guide.md)**: Tactical formulas to reduce LLM bills by 60%–85%.
+5. **[LangSmith & Enterprise Structured Logging Guide](docs/langsmith_and_structured_logging.md)**: Dual-telemetry architecture, RunTree hierarchy, PII redaction, and in-band SIEM log streams.
 
 ---
 
@@ -85,6 +88,11 @@ OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 GEMINI_API_KEY=AIzaSy...
 OPENROUTER_API_KEY=sk-or-...
+
+# Optional: LangSmith Tracing
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=lsv2_pt_...
+LANGCHAIN_PROJECT=telekom-agent-prod
 ```
 
 ### 2. Running Python Examples (`uv`)
@@ -94,12 +102,20 @@ cd python
 # Install dependencies into virtualenv managed by uv
 uv sync
 
-# Run any module example
+# Run direct SDK module examples
 uv run python -m src.m01_paradigms.chat_comparison
 uv run python -m src.m02_structured_outputs.openai_strict
 uv run python -m src.m03_prompt_caching.cache_invalidation_demo
 uv run python -m src.m05_resilience.fallback_cascade
 uv run python -m src.m06_gateways.cost_calculator
+
+# Run LangChain & LangGraph suite examples
+uv run python -m src.langchain_suite.m01_paradigms.unified_chat
+uv run python -m src.langchain_suite.m02_structured.structured_output
+uv run python -m src.langchain_suite.m05_resilience.fallback_cascade
+uv run python -m src.langchain_suite.m06_gateways.cost_router
+uv run python -m src.langchain_suite.agent_recovery.recover_demo
+uv run python -m src.langchain_suite.agent_recovery.dual_telemetry_demo
 ```
 
 ### 3. Running TypeScript Examples (`npm` / `tsx`)
@@ -109,12 +125,20 @@ cd typescript
 # Install dependencies
 npm install
 
-# Run any module example
+# Run direct SDK module examples
 npm run start:m01
 npm run start:m02
 npm run start:m03
 npm run start:m05
 npm run start:m06
+
+# Run LangChain & LangGraph suite examples
+npm run start:lc:m01
+npm run start:lc:m02
+npm run start:lc:m05
+npm run start:lc:m06
+npm run start:lc:agent
+npm run start:lc:telemetry
 ```
 
 ### 4. Compiling & Presenting Slides

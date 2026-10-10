@@ -45,4 +45,7 @@ typescript/dist/
 *.swo
 .DS_Store
 Thumbs.db
+*.db
+*.sqlite
+*.sqlite3
 

@@ -12,6 +12,7 @@ Welcome to the hands-on laboratory exercises for **Production GenAI API Integrat
 | **Lab 02** | [Prompt Cache Optimization Audit](./lab02_prompt_cache_audit) | Prefix Invalidation, Dynamic Timestamps, Threshold Sizing | Python (`uv`) & TypeScript (`tsx`) |
 | **Lab 03** | [Multi-Provider Resilience Cascade](./lab03_resilience_cascade) | Circuit Breaker State Machine, Automated Failover, Fallback Quality | Python (`uv`) & TypeScript (`tsx`) |
 | **Lab 04** | [Batch API Cost Arbitrage Pipeline](./lab04_batch_pipeline) | JSONL Batch Construction, Line Error Handling, 50% Cost Savings | Python (`uv`) & TypeScript (`tsx`) |
+| **Lab 05** | [Fault-Tolerant State Machine & SQLite Crash Recovery](./lab05_langgraph_recovery) | LangGraph Cyclical Graphs, Tool Routing, SQLite Checkpointing, Process Crash Recovery | Python (`uv`) & TypeScript (`tsx`) |
 
 ---
 
