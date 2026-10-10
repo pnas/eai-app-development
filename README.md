@@ -1,0 +1,132 @@
+# Advanced GenAI Integration: Enterprise Engineering Masterclass
+
+[![Python 3.12](https://img.shields.io/badge/Python-3.12%2B-blue.svg)](https://python.org)
+[![uv](https://img.shields.io/badge/managed%20by-uv-purple.svg)](https://docs.astral.sh/uv/)
+[![TypeScript 5](https://img.shields.io/badge/TypeScript-5.x-blue.svg)](https://www.typescriptlang.org/)
+[![Node 24](https://img.shields.io/badge/Node-24%2B-green.svg)](https://nodejs.org/)
+[![Marp](https://img.shields.io/badge/slides-Marp%20HTML%2FPDF-orange.svg)](https://marp.app/)
+
+An intensive, production-focused engineering curriculum, hands-on laboratory exercises, and dual-stack codebase designed for software engineers and architects building real-world integrations with **OpenAI**, **Anthropic**, and **Google Gemini**.
+
+---
+
+## 🎯 Course Curriculum & Modules
+
+| Module | Title | Core Concepts | Python Code | TypeScript Code |
+| :--- | :--- | :--- | :--- | :--- |
+| **01** | **[API Paradigms & Protocols](slides/01_api_paradigms.md)** | SDK wire protocols, SSE streaming, content block polymorphism, tool calling wire formats. | `python/src/m01_paradigms/` | `typescript/src/m01_paradigms/` |
+| **02** | **[The Response API & Structured Outputs](slides/02_structured_outputs.md)** | Grammar-constrained decoding vs JSON mode, Pydantic v2 & Zod schemas, self-repair loops. | `python/src/m02_structured_outputs/` | `typescript/src/m02_structured_outputs/` |
+| **03** | **[Prompt Caching & KV-Cache](slides/03_prompt_caching_and_kvcache.md)** | GPU VRAM PagedAttention, Anthropic breakpoints, OpenAI prefix caching, Gemini Context Caching, 6 cache-breaking traps. | `python/src/m03_prompt_caching/` | `typescript/src/m03_prompt_caching/` |
+| **04** | **[Asynchronous Batch Inference](slides/04_batch_inference.md)** | 50% discount economics, JSONL batch pipelines, polling state machines, row-level dead letters. | `python/src/m04_batch_processing/` | `typescript/src/m04_batch_processing/` |
+| **05** | **[Resilience, Rate Limits & Errors](slides/05_error_handling_resilience.md)** | 400/429/500/529 HTTP taxonomy, Exponential Backoff with Full Jitter, Circuit Breakers, Multi-provider Fallback Cascade. | `python/src/m05_resilience/` | `typescript/src/m05_resilience/` |
+| **06** | **[Gateways & Cost Optimization](slides/06_gateways_and_cost_optimization.md)** | LiteLLM proxy vs OpenRouter, virtual keys, dynamic model routing, and production cost reduction playbook. | `python/src/m06_gateways/` | `typescript/src/m06_gateways/` |
+
+---
+
+## 🧪 Student Hands-on Engineering Labs
+
+The **[exercises/](./exercises)** directory contains 4 production-grade engineering challenges complete with starters (`TODO` markers), reference solutions, and automated test harnesses across both Python and TypeScript:
+
+1. **[Lab 01: Token-Bucket Rate Limiter & Jittered Retry](exercises/lab01_rate_limiter)**: Build proactive client-side rate limiters and decorrelated jitter to avoid HTTP 429 thundering herds.
+2. **[Lab 02: Prompt Cache Optimization & Audit](exercises/lab02_prompt_cache_audit)**: Audit a broken prompt assembly pipeline that suffers from timestamp injection and unstable serialization to achieve $\ge 90\%$ cache hit rates.
+3. **[Lab 03: Multi-Provider Fallback Cascade with Circuit Breakers](exercises/lab03_resilience_cascade)**: Implement a 3-tier cascade (Claude Sonnet $\to$ GPT-4o $\to$ Gemini Flash) with circuit breaker isolation.
+4. **[Lab 04: Batch API Cost Arbitrage Pipeline](exercises/lab04_batch_pipeline)**: Build an asynchronous batch ingestion engine with line error isolation and audited 50% cost savings.
+
+### Running Laboratory Tests
+
+```powershell
+# Python Stack (uv + pytest):
+cd python
+uv run pytest ../exercises/
+
+# TypeScript Stack (Node.js 24 + tsx):
+cd typescript
+npm test
+```
+
+---
+
+## 👨‍🏫 Instructor & Facilitator Guide
+
+See **[INSTRUCTOR_GUIDE.md](./INSTRUCTOR_GUIDE.md)** for:
+- 1-Day Intensive (8h) and 2-Day Workshop (16h) delivery timetables.
+- Slide-by-slide facilitator talking points, live whiteboard prompts, and common student pitfalls.
+- Lab facilitation hints and grading rubrics.
+
+---
+
+## 🏛️ System Architecture Diagrams
+
+- **[KV-Cache vs Prompt Caching Architecture](diagrams/kv_cache_vs_prompt_cache.mmd)**: GPU memory block reuse vs cluster prefix hashing and cache-breaking factors.
+- **[Batch Inference Lifecycle](diagrams/batch_lifecycle.mmd)**: Sequence flow of asynchronous 50%-discount batch execution and polling.
+- **[Multi-Provider Fallback Cascade](diagrams/fallback_cascade.mmd)**: Resilient fallback flow between Claude, OpenAI, and Gemini with circuit breaker protection.
+- **[LLM Gateway Architecture](diagrams/gateway_architecture.mmd)**: Centralized proxy routing, virtual keys, and spend controls.
+- **[Structured Outputs Mechanics](diagrams/structured_outputs_mechanics.mmd)**: Grammar state machines vs legacy prompt-based JSON.
+
+---
+
+## 📚 Deep-Dive Engineering Guides
+
+1. **[API Comparison Matrix](docs/api_comparison_matrix.md)**: Exhaustive side-by-side feature comparison between OpenAI, Anthropic, and Gemini.
+2. **[Prompt Caching Rules & Pitfalls](docs/prompt_caching_rules.md)**: The 6 deadly mistakes that silently invalidate prompt caches.
+3. **[Error Handling & Rate Limits Cheat Sheet](docs/error_code_cheatsheet.md)**: HTTP status codes, headers, and retry strategies.
+4. **[Cost Optimization Playbook](docs/cost_optimization_guide.md)**: Tactical formulas to reduce LLM bills by 60%–85%.
+
+---
+
+## ⚡ Quickstart
+
+### 1. Environment Setup
+
+Copy `.env.example` to `.env` in both `python/` and `typescript/` and add your API keys:
+
+```bash
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GEMINI_API_KEY=AIzaSy...
+OPENROUTER_API_KEY=sk-or-...
+```
+
+### 2. Running Python Examples (`uv`)
+
+```powershell
+cd python
+# Install dependencies into virtualenv managed by uv
+uv sync
+
+# Run any module example
+uv run python -m src.m01_paradigms.chat_comparison
+uv run python -m src.m02_structured_outputs.openai_strict
+uv run python -m src.m03_prompt_caching.cache_invalidation_demo
+uv run python -m src.m05_resilience.fallback_cascade
+uv run python -m src.m06_gateways.cost_calculator
+```
+
+### 3. Running TypeScript Examples (`npm` / `tsx`)
+
+```powershell
+cd typescript
+# Install dependencies
+npm install
+
+# Run any module example
+npm run start:m01
+npm run start:m02
+npm run start:m03
+npm run start:m05
+npm run start:m06
+```
+
+### 4. Compiling & Presenting Slides
+
+All 6 presentation decks can be compiled into self-contained HTML presentations using Marp:
+
+```powershell
+# Using the automated build script:
+.\scripts\build_slides.ps1
+
+# Or on macOS/Linux:
+./scripts/build_slides.sh
+```
+
+Pre-compiled HTML slides are available in `dist/slides/`. Open any `.html` file in your browser to present directly!
