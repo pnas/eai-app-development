@@ -1,0 +1,30 @@
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Engineer as Application / Pipeline
+    participant API as Provider API (OpenAI / Anthropic / Gemini)
+    participant Storage as File / Batch Store
+    participant Compute as Background Inference Worker
+
+    Note over Engineer,API: 50% Flat Cost Discount Applied to Batch Tokens
+    Engineer->>Storage: 1. Upload .jsonl Batch Payload (Custom IDs per row)
+    Storage-->>Engineer: File ID (file-xyz)
+    
+    Engineer->>API: 2. Create Batch Job (file_id, endpoint="/v1/chat/completions", completion_window="24h")
+    API-->>Engineer: Batch Job Object (id="batch-123", status="validating")
+
+    loop Polling Loop (Exponential Backoff with Jitter: 15s -> 60s -> 300s)
+        Engineer->>API: 3. Retrieve Batch Status (id="batch-123")
+        API-->>Engineer: Status Update ("in_progress", completed_count=42, total=100)
+    end
+
+    API-->>Engineer: Status = "completed" (output_file_id="file-out-999", error_file_id=null)
+    
+    Engineer->>Storage: 4. Download Results Stream (file-out-999)
+    Storage-->>Engineer: Stream of JSONL Response Objects
+    
+    rect rgb(240, 248, 255)
+        Note over Engineer: 5. Re-correlate by custom_id & handle per-row failures / safety flags
+    end
+```
+
