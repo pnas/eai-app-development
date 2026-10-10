@@ -1,0 +1,28 @@
+```mermaid
+flowchart TD
+    subgraph Prompting ["1. Unconstrained JSON Mode (Legacy)"]
+        direction TB
+        Prompt1["System: Return JSON matching schema {...}"]
+        Sampling1["Standard Autoregressive Sampling (Softmax over full vocab)"]
+        Risk1["⚠️ Vulnerable to schema drift, hallucinated keys, markdown fences (```json), syntax errors"]
+        Prompt1 --> Sampling1 --> Risk1
+    end
+
+    subgraph Constrained ["2. Grammar-Constrained Decoding (Modern Response API)"]
+        direction TB
+        Schema2["Strict JSON Schema / Pydantic / Zod (additionalProperties: false)"]
+        GrammarCFG["Grammar State Machine / FSM (Context-Free Grammar)"]
+        Masking["Logit Masking (Zero out illegal token probabilities at each step)"]
+        Guaranteed["✅ 100% Guaranteed Syntactic & Schema Compliance"]
+        Schema2 --> GrammarCFG --> Masking --> Guaranteed
+    end
+
+    subgraph Failure_Modes ["3. Remaining Failure Modes in Constrained Decoding"]
+        F1["Max Output Tokens Exceeded (Truncated mid-string/array)"]
+        F2["Semantic hallucination (Valid type, wrong business value)"]
+        F3["Context-length overflow before generation begins"]
+    end
+
+    Guaranteed -.-> Failure_Modes
+```
+
