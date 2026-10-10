@@ -1,0 +1,39 @@
+{
+  "name": "advanced-ai-integration-typescript",
+  "version": "1.0.0",
+  "description": "Production GenAI API Integrations Course Examples (TypeScript / Node.js 24)",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start:m01": "tsx src/m01_paradigms/chatComparison.ts",
+    "start:m01:stream": "tsx src/m01_paradigms/streamingComparison.ts",
+    "start:m01:tool": "tsx src/m01_paradigms/toolCalling.ts",
+    "start:m02": "tsx src/m02_structured_outputs/openaiStrict.ts",
+    "start:m02:anthropic": "tsx src/m02_structured_outputs/anthropicStructured.ts",
+    "start:m02:repair": "tsx src/m02_structured_outputs/selfRepair.ts",
+    "start:m03": "tsx src/m03_prompt_caching/cacheInvalidationDemo.ts",
+    "start:m03:anthropic": "tsx src/m03_prompt_caching/anthropicCache.ts",
+    "start:m04": "tsx src/m04_batch_processing/batchOrchestrator.ts",
+    "start:m05": "tsx src/m05_resilience/circuitBreaker.ts",
+    "start:m05:fallback": "tsx src/m05_resilience/fallbackCascade.ts",
+    "start:m06": "tsx src/m06_gateways/costCalculator.ts",
+    "test": "tsx --test ../exercises/**/typescript/test*.ts",
+    "test:lab01": "tsx --test ../exercises/lab01_rate_limiter/typescript/testRateLimiter.ts",
+    "test:lab02": "tsx --test ../exercises/lab02_prompt_cache_audit/typescript/testCacheAudit.ts",
+    "test:lab03": "tsx --test ../exercises/lab03_resilience_cascade/typescript/testCascade.ts",
+    "test:lab04": "tsx --test ../exercises/lab04_batch_pipeline/typescript/testBatch.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@google/genai": "^2.28.0",
+    "dotenv": "^16.4.7",
+    "openai": "^4.85.0",
+    "picocolors": "^1.1.1",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
