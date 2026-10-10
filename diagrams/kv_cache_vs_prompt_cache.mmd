@@ -1,0 +1,50 @@
+```mermaid
+graph TD
+    subgraph GPU_VRAM ["GPU VRAM Layer: KV-Cache (PagedAttention)"]
+        direction TB
+        TokensIn["Input Tokens (1..N)"]
+        KVComp["Key & Value Tensor Computation (Prefill: O(N²) Matrix Math)"]
+        PagedBlocks["PagedAttention Memory Blocks (VRAM Allocations)"]
+        NextToken["Next Token Generation (Decoding: O(1) per token step)"]
+        
+        TokensIn --> KVComp
+        KVComp -->|"Store Keys & Values"| PagedBlocks
+        PagedBlocks -->|"Reuse KV without recomputation"| NextToken
+    end
+
+    subgraph API_Level ["Provider Cluster: Prompt Caching (Prefix Sharing)"]
+        direction TB
+        IncomingReq["Incoming Request: [System Prompt] + [Large Context] + [User Query]"]
+        PrefixHash["Hash Prefix Chunks (e.g. 128 / 1024 token blocks)"]
+        ClusterLookup{"Lookup Cluster Memory / NVMe Cache"}
+        
+        CacheHit["Cache Hit (e.g. 90% Read Discount, 80% Latency Reduction)"]
+        CacheMiss["Cache Miss (Full Token Pricing, Full Prefill Compute)"]
+        
+        IncomingReq --> PrefixHash
+        PrefixHash --> ClusterLookup
+        ClusterLookup -->|"Match Found"| CacheHit
+        ClusterLookup -->|"Prefix Changed / Evicted"| CacheMiss
+        
+        CacheHit -->|"Load precomputed KV states"| PagedBlocks
+        CacheMiss -->|"Trigger fresh prefill"| TokensIn
+    end
+
+    subgraph Invalidation_Pitfalls ["⚠️ What Breaks the Cache?"]
+        direction TB
+        B1["Dynamic Timestamps in System Prompt ('Current Time: 15:30:00')"]
+        B2["Shuffled Tool / Function Definitions in JSON Schema"]
+        B3["User Session ID or UUID inserted BEFORE static document"]
+        B4["Non-deterministic whitespace or serialized JSON formatting"]
+    end
+
+    Invalidation_Pitfalls -.->|"Breaks Prefix Equality"| PrefixHash
+
+    classDef hit fill:#d4edda,stroke:#28a745,stroke-width:2px;
+    classDef miss fill:#f8d7da,stroke:#dc3545,stroke-width:2px;
+    classDef warning fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
+    class CacheHit hit;
+    class CacheMiss miss;
+    class Invalidation_Pitfalls,B1,B2,B3,B4 warning;
+```
+
