@@ -1,0 +1,34 @@
+```mermaid
+flowchart TD
+    Start([Client Request]) --> C1{Circuit Breaker Closed?}
+    
+    C1 -->|Yes| P1[Primary Provider: Claude 3.5 Sonnet]
+    C1 -->|Tripped Open| P2[Secondary Provider: GPT-4o]
+    
+    P1 --> R1{HTTP Response Code?}
+    R1 -->|200 OK| Success([Return Response to Client])
+    R1 -->|429 Rate Limit / 529 Overloaded / 503| Retry1{Retry Attempts < 3?}
+    R1 -->|400 Invalid Prompt / Schema Error| ClientErr([Return Client Error - No Retry])
+    
+    Retry1 -->|Yes| Backoff1[Wait Exponential Backoff + Full Jitter] --> P1
+    Retry1 -->|No / Exhausted| TripCB1[Increment Breaker Failure Counter] --> P2
+    
+    P2 --> R2{HTTP Response Code?}
+    R2 -->|200 OK| Success
+    R2 -->|429 / 5xx / Timeout| Retry2{Retry Attempts < 2?}
+    
+    Retry2 -->|Yes| Backoff2[Wait Jittered Backoff] --> P2
+    Retry2 -->|No| P3[Tertiary Fallback: Gemini 1.5 Flash]
+    
+    P3 --> R3{HTTP Response Code?}
+    R3 -->|200 OK| Success
+    R3 -->|Failed| DeadLetter[Dead Letter Queue / Graceful Error Fallback]
+
+    classDef ok fill:#d4edda,stroke:#28a745,stroke-width:2px;
+    classDef fail fill:#f8d7da,stroke:#dc3545,stroke-width:2px;
+    classDef retry fill:#fff3cd,stroke:#ffc107,stroke-width:2px;
+    class Success ok;
+    class DeadLetter,ClientErr fail;
+    class Backoff1,Backoff2 retry;
+```
+
