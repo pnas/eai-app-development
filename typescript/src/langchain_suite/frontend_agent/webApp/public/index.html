@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LangGraph Agent Architecture Demo (TypeScript)</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-layout">
+    <!-- Sidebar: Architecture & Configuration -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="logo-badge">TS</div>
+        <div>
+          <h2>Agent Studio</h2>
+          <span class="subtitle">LangGraph & SSE Architecture</span>
+        </div>
+      </div>
+
+      <!-- Pattern Selector -->
+      <div class="config-section">
+        <label class="section-label">Integration Pattern</label>
+        <div class="pattern-toggle">
+          <label class="pattern-card active" id="patternA-card">
+            <input type="radio" name="pattern" value="in-process" checked>
+            <div class="pattern-info">
+              <span class="pattern-name">Pattern A: In-Process</span>
+              <span class="pattern-desc">Monolith (Web process executes agent directly)</span>
+            </div>
+            <span class="pill pill-in-proc">Fastest</span>
+          </label>
+          <label class="pattern-card" id="patternB-card">
+            <input type="radio" name="pattern" value="remote">
+            <div class="pattern-info">
+              <span class="pattern-name">Pattern B: Decoupled</span>
+              <span class="pattern-desc">Microservice (Independent HTTP SSE backend)</span>
+            </div>
+            <span class="pill pill-remote">Isolated</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- Remote Backend URL (Pattern B only) -->
+      <div class="config-section" id="remoteBackendSection" style="display: none;">
+        <label class="section-label" for="remoteUrlInput">Remote Microservice URL</label>
+        <input type="text" id="remoteUrlInput" class="text-input" value="http://localhost:4000/agent/chat/stream" placeholder="http://localhost:4000/agent/chat/stream">
+        <div class="preset-links">
+          <span>Presets:</span>
+          <button type="button" class="btn-link" onclick="setRemoteUrl('http://localhost:4000/agent/chat/stream')">TS Port 4000</button>
+          <button type="button" class="btn-link" onclick="setRemoteUrl('http://localhost:8000/agent/chat/stream')">Python Port 8000</button>
+        </div>
+      </div>
+
+      <!-- LLM Provider -->
+      <div class="config-section">
+        <label class="section-label" for="providerSelect">LLM Provider</label>
+        <select id="providerSelect" class="select-input">
+          <option value="mock" selected>Mock Model (Offline Lab - No API key)</option>
+          <option value="openai">OpenAI (gpt-4o-mini)</option>
+          <option value="anthropic">Anthropic (Claude 3.5 Haiku)</option>
+          <option value="gemini">Google Gemini (Gemini 2.0 Flash)</option>
+        </select>
+      </div>
+
+      <!-- Quick Starters -->
+      <div class="config-section">
+        <label class="section-label">Quick Prompts</label>
+        <div class="quick-prompts">
+          <button class="quick-btn" onclick="sendQuickPrompt('What time is it in Berlin right now?')">
+            ⏰ Time in Berlin
+          </button>
+          <button class="quick-btn" onclick="sendQuickPrompt('What time is it in Tokyo and New York?')">
+            🌏 Tokyo & NY Time
+          </button>
+          <button class="quick-btn" onclick="sendQuickPrompt('Give me an inspiring technology quote!')">
+            💡 Tech Quote
+          </button>
+          <button class="quick-btn" onclick="sendQuickPrompt('Share an inspiring philosophy quote about life.')">
+            📜 Philosophy Quote
+          </button>
+        </div>
+      </div>
+
+      <!-- Active Tools Inventory -->
+      <div class="config-section tools-section">
+        <div class="section-header-row">
+          <label class="section-label">Tool Registry (<span id="toolCount">2</span>)</label>
+          <button type="button" class="btn-refresh" id="btnRefreshTools" title="Reload Tools">↻</button>
+        </div>
+        <div class="tool-list" id="toolList">
+          <div class="tool-card">
+            <div class="tool-title"><code>get_current_time</code></div>
+            <div class="tool-desc">Returns real-time time & date for world timezones.</div>
+          </div>
+          <div class="tool-card">
+            <div class="tool-title"><code>get_random_quote</code></div>
+            <div class="tool-desc">Fetches inspiring quotes by category (tech, philosophy, etc).</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Actions -->
+      <div class="sidebar-footer">
+        <button id="clearChatBtn" class="btn-secondary">Clear Chat</button>
+        <div class="service-status" id="serviceStatus">
+          <span class="status-dot"></span> <span id="statusText">Ready</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main Chat Container -->
+    <main class="chat-main">
+      <header class="chat-header">
+        <div class="header-left">
+          <h1 id="activePatternTitle">Pattern A: In-Process Monolith</h1>
+          <p id="activePatternDesc">Agent runs within the Web Server process. Direct SSE pipeline with minimum latency.</p>
+        </div>
+        <div class="header-right">
+          <span class="badge" id="activeProviderBadge">Provider: mock</span>
+          <span class="badge badge-thread" id="activeThreadBadge">Thread: #web-session</span>
+        </div>
+      </header>
+
+      <!-- Message History Area -->
+      <div class="chat-messages" id="chatMessages">
+        <div class="welcome-message">
+          <div class="welcome-icon">🤖</div>
+          <h3>Welcome to the LangGraph Frontend Agent Demo</h3>
+          <p>
+            This full-stack application demonstrates how to integrate a cyclical LangGraph agent with a modern web UI using two real-world patterns:
+          </p>
+          <div class="welcome-grid">
+            <div class="welcome-box">
+              <strong>Pattern A: In-Process Monolith</strong>
+              <p>The agent graph compiles and executes in the same Node.js process as the web server, streaming SSE lifecycle events straight to your browser.</p>
+            </div>
+            <div class="welcome-box">
+              <strong>Pattern B: Decoupled Microservice</strong>
+              <p>The agent runs in a dedicated microservice process (TypeScript on port 4000 or Python FastAPI on port 8000), decoupling heavy agent workloads from web routing.</p>
+            </div>
+          </div>
+          <p class="welcome-tip">Select a prompt starter from the sidebar or type a question below to see tool calls and token streaming in real-time!</p>
+        </div>
+      </div>
+
+      <!-- Chat Input Area -->
+      <div class="chat-input-bar">
+        <form id="chatForm" class="chat-form">
+          <textarea
+            id="messageInput"
+            placeholder="Ask for the current time or an inspiring quote..."
+            rows="1"
+            autofocus
+          ></textarea>
+          <button type="submit" id="sendBtn" class="btn-send">
+            <span>Send</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+            </svg>
+          </button>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+

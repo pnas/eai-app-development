@@ -2,6 +2,11 @@
 
 Normalizes vendor-specific errors (OpenAI, Anthropic, Google Gemini) into
 actionable enterprise domain exceptions.
+
+Official References:
+- OpenAI Rate Limits: https://developers.openai.com/api/docs/guides/rate-limits
+- OpenAI Latency Optimization: https://developers.openai.com/api/docs/guides/latency-optimization
+- OpenAI Fast Mode: https://developers.openai.com/api/docs/guides/fast-mode
 """
 
 from __future__ import annotations
@@ -23,10 +28,11 @@ class GenAIError(Exception):
 
 
 class RateLimitExceededError(GenAIError):
-    """429: TPM / RPM quota exceeded."""
-    def __init__(self, message: str, retry_after_seconds: float = 5.0):
+    """429: TPM / RPM quota exceeded, or OpenAI 'slow_down' / Fast Mode ramp ceiling."""
+    def __init__(self, message: str, retry_after_seconds: float = 5.0, error_code: str = "rate_limit_exceeded"):
         super().__init__(message, retryable=True, status_code=429)
         self.retry_after_seconds = retry_after_seconds
+        self.error_code = error_code
 
 
 class ContextLengthExceededError(GenAIError):
@@ -36,9 +42,9 @@ class ContextLengthExceededError(GenAIError):
 
 
 class ProviderOverloadedError(GenAIError):
-    """529 (Anthropic) or 503: Provider infrastructure capacity exhausted."""
-    def __init__(self, message: str):
-        super().__init__(message, retryable=True, status_code=529)
+    """529 (Anthropic) or 503 (OpenAI server_is_overloaded / resource_unavailable): Provider infrastructure capacity exhausted."""
+    def __init__(self, message: str, status_code: int = 503):
+        super().__init__(message, retryable=True, status_code=status_code)
 
 
 class AuthenticationError(GenAIError):
@@ -60,7 +66,7 @@ def normalize_api_exception(exc: Exception) -> GenAIError:
         return RateLimitExceededError(f"Anthropic Rate Limit: {exc.message}")
     if isinstance(exc, anthropic.APIStatusError):
         if exc.status_code == 529:
-            return ProviderOverloadedError(f"Anthropic Overloaded (529): {exc.message}")
+            return ProviderOverloadedError(f"Anthropic Overloaded (529): {exc.message}", status_code=529)
         if exc.status_code in (401, 403):
             return AuthenticationError(f"Anthropic Auth Failure ({exc.status_code}): {exc.message}")
         if exc.status_code >= 500:
@@ -70,10 +76,23 @@ def normalize_api_exception(exc: Exception) -> GenAIError:
 
     # OpenAI Exceptions
     if isinstance(exc, openai.RateLimitError):
-        return RateLimitExceededError(f"OpenAI Rate Limit: {exc.message}")
+        msg = str(exc.message)
+        code = "slow_down" if "slow_down" in msg else "rate_limit_exceeded"
+        retry_after = 5.0
+        if hasattr(exc, "response") and exc.response is not None:
+            raw_retry = exc.response.headers.get("retry-after")
+            if raw_retry:
+                try:
+                    retry_after = float(raw_retry)
+                except ValueError:
+                    pass
+        return RateLimitExceededError(f"OpenAI Rate Limit ({code}): {msg}", retry_after_seconds=retry_after, error_code=code)
     if isinstance(exc, openai.AuthenticationError):
         return AuthenticationError(f"OpenAI Auth Failure: {exc.message}")
     if isinstance(exc, openai.InternalServerError):
+        msg = str(exc.message)
+        if "server_is_overloaded" in msg or "resource_unavailable" in msg or getattr(exc, "status_code", 500) == 503:
+            return ProviderOverloadedError(f"OpenAI Server Overloaded (503): {msg}", status_code=503)
         return TransientServerError(f"OpenAI Server Error: {exc.message}")
     if isinstance(exc, openai.BadRequestError):
         if "context_length_exceeded" in str(exc) or "maximum context length" in str(exc):

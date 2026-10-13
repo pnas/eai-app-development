@@ -19,8 +19,9 @@ Write-Host ">>> Compiling slides from '$InputDir' to '$OutputDir'..." -Foregroun
 npx --yes @marp-team/marp-cli --no-stdin --input-dir $InputDir -o $OutputDir
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "`n>>> Successfully built all 6 presentation decks in $($OutputDir):" -ForegroundColor Green
-    Get-ChildItem -Path $OutputDir -Filter "*.html" | ForEach-Object {
+    $decks = Get-ChildItem -Path $OutputDir -Filter "*.html"
+    Write-Host "`n>>> Successfully built all $($decks.Count) presentation decks in $($OutputDir):" -ForegroundColor Green
+    $decks | ForEach-Object {
         Write-Host "  - $($_.Name) ($([math]::Round($_.Length / 1KB, 1)) KB)" -ForegroundColor Gray
     }
     Write-Host "`nOpen any HTML file in your browser to present!" -ForegroundColor Cyan

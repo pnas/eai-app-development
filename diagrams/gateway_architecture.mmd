@@ -1,40 +1,86 @@
-```mermaid
-flowchart LR
-    subgraph Clients ["Engineering Applications"]
+flowchart TB
+    subgraph Clients ["Engineering Applications & Microservices"]
         App1["Billing Microservice (Python)"]
         App2["Customer Chatbot (TypeScript)"]
         App3["Analytics Batch Pipeline"]
     end
 
-    subgraph Gateway ["LLM Gateway Layer (LiteLLM Proxy / OpenRouter)"]
+    subgraph Gateway ["Enterprise LLM Gateway Layer (LiteLLM Proxy / OpenRouter)"]
         direction TB
-        Auth["Virtual Key Auth & Spend Quota"]
-        Router["Model Router & Dynamic Fallbacks"]
-        Cache["Shared Semantic / Exact Cache"]
-        Telemetry["Cost Accounting & Latency Tracking"]
         
-        Auth --> Router
-        Router --> Cache
-        Cache --> Telemetry
+        subgraph Ingress ["1. Ingress & Security"]
+            Auth["Virtual Key Auth & Team Quota Enforcement"]
+            PreGuard["Pre-Call Guardrails (PII Scrubbing / Prompt Injection)"]
+            Auth --> PreGuard
+        end
+
+        subgraph Caching ["2. Response Caching Engine"]
+            direction LR
+            ExactCache["Exact Match Cache (SHA-256 Hash)"]
+            SemanticCache["Semantic Vector Cache (Cosine Similarity >= 0.85)"]
+            ExactCache -.->|Miss| SemanticCache
+        end
+
+        subgraph CoreRouting ["3. Routing, Load Balancing & Fallbacks"]
+            direction TB
+            Router["Model Router (Latency / Usage TPM / Cost Tier)"]
+            LB["Load Balancer & Connection Pool"]
+            Fallbacks["Resilience Engine (Cross-Model & Cross-Provider Failover)"]
+            Router --> LB --> Fallbacks
+        end
+
+        subgraph Egress ["4. Egress & Telemetry"]
+            direction TB
+            PostGuard["Post-Call Guardrails (Toxicity & Schema Healing)"]
+            Telemetry["Dual Telemetry (OTel GenAI Spans & SIEM Spend Audit)"]
+            PostGuard --> Telemetry
+        end
+
+        PreGuard --> Caching
+        Caching -->|"Cache Miss"| Router
+        Fallbacks --> PostGuard
+    end
+
+    subgraph Infra ["Supporting Infrastructure"]
+        PG[("PostgreSQL (Key Vault & Budgets)")]
+        Redis[("Redis / Valkey (Exact & Semantic Cache)")]
+        SIEM["SIEM / Splunk / OTel Collector"]
     end
 
     subgraph Providers ["Upstream Foundation Model Providers"]
-        OpenAI["OpenAI (GPT-4o, o1/o3)"]
-        Anthropic["Anthropic (Claude 3.5 Sonnet)"]
+        OpenAI["OpenAI (GPT-4o, o-series)"]
+        Anthropic["Anthropic (Claude 3.5/3.7 Sonnet)"]
         Google["Google Gemini (Flash / Pro)"]
-        OpenSource["Self-Hosted / DeepSeek / Mistral"]
+        Bedrock["AWS Bedrock (Cross-Cloud Claude/Titan)"]
+        OpenSource["Self-Hosted vLLM (DeepSeek / Mistral)"]
     end
 
-    App1 -->|"Unified OpenAI-Compatible Wire Protocol"| Auth
-    App2 -->|"Unified OpenAI-Compatible Wire Protocol"| Auth
-    App3 -->|"Unified OpenAI-Compatible Wire Protocol"| Auth
+    %% Client traffic
+    App1 -->|"Unified OpenAI Wire Protocol (Bearer sk-...)"| Auth
+    App2 -->|"Unified OpenAI Wire Protocol (Bearer sk-...)"| Auth
+    App3 -->|"/v1/batches Async Inference"| Auth
 
-    Telemetry -->|"Direct SDK Call"| OpenAI
-    Telemetry -->|"Direct SDK Call"| Anthropic
-    Telemetry -->|"Direct SDK Call"| Google
-    Telemetry -->|"vLLM / TGI Call"| OpenSource
+    %% Infra connections
+    Auth <-->|"Check Quota & RPM"| PG
+    Caching <-->|"Store & Query Vectors"| Redis
+    Telemetry -->|"Export Structured Spans"| SIEM
+
+    %% Provider dispatch
+    Fallbacks -->|"Direct HTTP/2 Dispatch"| OpenAI
+    Fallbacks -->|"Direct HTTP/2 Dispatch"| Anthropic
+    Fallbacks -->|"Direct HTTP/2 Dispatch"| Google
+    Fallbacks -->|"IAM Signed SDK Dispatch"| Bedrock
+    Fallbacks -->|"Internal VPC Dispatch"| OpenSource
+
+    %% Cache Hit shortcut
+    Caching -.->|"Instant Cache Hit (0ms LLM Cost)"| PostGuard
 
     classDef gw fill:#e8f4f8,stroke:#17a2b8,stroke-width:2px;
-    class Gateway gw;
-```
+    classDef client fill:#f8f9fa,stroke:#6c757d,stroke-width:1px;
+    classDef prov fill:#e9ecef,stroke:#495057,stroke-width:1px;
+    classDef storage fill:#fff3cd,stroke:#ffc107,stroke-width:1px;
 
+    class Gateway gw;
+    class App1,App2,App3 client;
+    class OpenAI,Anthropic,Google,Bedrock,OpenSource prov;
+    class PG,Redis,SIEM storage;

@@ -20,8 +20,15 @@ dependencies = [
     "pydantic>=2.10.0",
     "python-dotenv>=1.0.1",
     "rich>=13.9.0",
+    "streamlit>=1.40.0",
+    "fastapi>=0.115.0",
+    "uvicorn>=0.32.0",
     "tenacity>=9.0.0",
+    "pypdf>=6.20.0",
 ]
+
+[project.scripts]
+lc-cli = "src.langchain_suite.cli:main"
 
 [build-system]
 requires = ["hatchling"]

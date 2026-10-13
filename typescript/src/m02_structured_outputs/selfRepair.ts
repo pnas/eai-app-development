@@ -26,19 +26,26 @@ ${currentError}
 Fix all syntax errors, close unclosed strings or arrays, and return ONLY a valid JSON object.
 `;
 
-    const completion = await client.beta.chat.completions.parse({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: "You are an automated JSON schema repair engine." },
-        { role: "user", content: repairPrompt },
-      ],
-      response_format: zodResponseFormat(SystemArchitectureSpecSchema, "repairedSpec"),
-    });
+    const models = ["gpt-4.1-mini", "gpt-4o-mini"];
+    for (const model of models) {
+      try {
+        const completion = await client.beta.chat.completions.parse({
+          model,
+          messages: [
+            { role: "system", content: "You are an automated JSON schema repair engine." },
+            { role: "user", content: repairPrompt },
+          ],
+          response_format: zodResponseFormat(SystemArchitectureSpecSchema, "repairedSpec"),
+        });
 
-    const parsed = completion.choices[0]?.message?.parsed;
-    if (parsed) {
-      console.log(pc.green("Successfully repaired and validated schema!"));
-      return parsed;
+        const parsed = completion.choices[0]?.message?.parsed;
+        if (parsed) {
+          console.log(pc.green(`Successfully repaired and validated schema using ${model}!`));
+          return parsed;
+        }
+      } catch (err: any) {
+        console.warn(pc.yellow(`Repair attempt with ${model} failed: ${err.message || err}`));
+      }
     }
   }
 

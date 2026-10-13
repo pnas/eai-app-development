@@ -1,14 +1,13 @@
-```mermaid
 flowchart TD
     Start([Client Request]) --> C1{Circuit Breaker Closed?}
     
-    C1 -->|Yes| P1[Primary Provider: Claude 3.5 Sonnet]
-    C1 -->|Tripped Open| P2[Secondary Provider: GPT-4o]
+    C1 -->|Yes| P1["Primary Provider: Claude Sonnet 5.5 (claude-sonnet-5-5)"]
+    C1 -->|Tripped Open| P2["Secondary Provider: OpenAI GPT-5.6 (gpt-5.6)"]
     
     P1 --> R1{HTTP Response Code?}
     R1 -->|200 OK| Success([Return Response to Client])
     R1 -->|429 Rate Limit / 529 Overloaded / 503| Retry1{Retry Attempts < 3?}
-    R1 -->|400 Invalid Prompt / Schema Error| ClientErr([Return Client Error - No Retry])
+    R1 -->|400 Invalid Payload / Sampling Param Error| ClientErr([Return Client Error - No Retry])
     
     Retry1 -->|Yes| Backoff1[Wait Exponential Backoff + Full Jitter] --> P1
     Retry1 -->|No / Exhausted| TripCB1[Increment Breaker Failure Counter] --> P2
@@ -18,7 +17,7 @@ flowchart TD
     R2 -->|429 / 5xx / Timeout| Retry2{Retry Attempts < 2?}
     
     Retry2 -->|Yes| Backoff2[Wait Jittered Backoff] --> P2
-    Retry2 -->|No| P3[Tertiary Fallback: Gemini 1.5 Flash]
+    Retry2 -->|No| P3["Tertiary Fallback: Gemini 2.5 Flash (gemini-2.5-flash)"]
     
     P3 --> R3{HTTP Response Code?}
     R3 -->|200 OK| Success
@@ -30,5 +29,3 @@ flowchart TD
     class Success ok;
     class DeadLetter,ClientErr fail;
     class Backoff1,Backoff2 retry;
-```
-

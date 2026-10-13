@@ -1,0 +1,33 @@
+flowchart TD
+    Start(["Incoming GenAI Workload"]) --> CheckSLA{"Is workload real-time<br/>interactive (<2s SLA)?"}
+
+    %% Async & Background paths
+    CheckSLA -- "No (Async / Background)" --> CheckLatencyTolerance{"Latency tolerance<br/>requirement?"}
+    CheckLatencyTolerance -- "Under 15 minutes (Synchronous)" --> FlexProcessing["<b>OpenAI Flex Processing</b><br/><code>service_tier: 'flex'</code><br/>• 50% Token Discount<br/>• Up to 15m Timeout<br/>• Synchronous Execution"]
+    CheckLatencyTolerance -- "Up to 24 hours (Asynchronous)" --> BatchAPI["<b>OpenAI Batch API</b><br/><code>/v1/responses</code> or <code>/v1/chat/completions</code><br/>• 50% Cost Arbitrage<br/>• Dedicated Queue (Zero TPM Impact)<br/>• Line-level fault isolation"]
+
+    %% Real-time interactive paths
+    CheckSLA -- "Yes (Real-time)" --> IdentifyBottleneck{"Primary Latency<br/>Bottleneck?"}
+
+    %% TTFT Optimization
+    IdentifyBottleneck -- "Time to First Token (TTFT)" --> PromptCacheAudit["<b>1. Optimize Prompt Caching</b><br/>• Place static context first (>1024 tokens)<br/>• Use <code>prompt_cache_options: {breakpoint: true}</code><br/>• Remove dynamic timestamps/UUIDs from prefix<br/>• Result: ~80% TTFT drop & up to 95% discount"]
+    PromptCacheAudit --> ReasoningAudit{"Is Deep Reasoning<br/>Required?"}
+    ReasoningAudit -- "No" --> SetReasoningLow["Set <code>reasoning_effort: 'none'</code> or <code>'low'</code><br/>(Skip lengthy CoT deliberation)"]
+    ReasoningAudit -- "Yes" --> SetReasoningTuned["Tune <code>reasoning: {effort: 'medium'}</code><br/>Stream reasoning tokens via SSE"]
+
+    %% TPOT Optimization
+    IdentifyBottleneck -- "Time Per Output Token (TPOT)" --> CheckPrediction{"Do you have prior or<br/>mostly identical content?<br/>(e.g., Code Refactor, Document Edit)"}
+    CheckPrediction -- "Yes" --> SpeculativeDecoding["<b>2. Speculative Decoding (Predicted Outputs)</b><br/><code>prediction: { type: 'content', content: originalText }</code><br/>• Validates candidate tokens in parallel<br/>• 2x–4x TPOT speedup on high overlap<br/>• Monitor <code>accepted_prediction_tokens</code>"]
+    CheckPrediction -- "No" --> CheckBudget{"Is Ultra-Low Latency<br/>critical regardless of cost?"}
+    
+    CheckBudget -- "Yes (Premium SLA)" --> FastMode["<b>3. OpenAI Fast Mode</b><br/><code>service_tier: 'fast'</code><br/>• Dedicated low-latency cluster<br/>• 1.75x Cost Premium<br/>• Concurrency ramp limits apply"]
+    CheckBudget -- "Standard / Cost Conscious" --> StandardTier["<b>Standard Tier</b><br/><code>service_tier: 'auto' | 'default'</code><br/>• Max tokens truncation<br/>• Concise system prompts<br/>• Output token minimization"]
+
+    %% Convergence
+    SetReasoningLow --> FinalOptimization["<b>Composite Pipeline Achieved</b><br/>• High Cache Hit Ratio<br/>• Minimal Latency Overheads<br/>• Robust Error Handling"]
+    SetReasoningTuned --> FinalOptimization
+    SpeculativeDecoding --> FinalOptimization
+    FastMode --> FinalOptimization
+    StandardTier --> FinalOptimization
+    FlexProcessing --> FinalOptimization
+    BatchAPI --> FinalOptimization

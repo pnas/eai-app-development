@@ -120,3 +120,18 @@ This directory contains production-ready Python examples implemented with modern
   uv run python -m src.m06_gateways.cost_calculator
   ```
 
+### Streamlit & LangChain Agent UI Integrations
+Demonstrates two enterprise architectural patterns connecting Streamlit chat UIs with LangChain/LangGraph tool-calling agents:
+- **Pattern A (In-Process Monolith)**: Agent runs directly in the Streamlit worker process.
+- **Pattern B (Decoupled Microservice)**: FastAPI executes the agent and streams lifecycle events over **Server-Sent Events (SSE)**.
+- **Tools (V1)**: `get_current_time` (timezone-aware) and `get_random_quote` (categorized quotes) with extensible `ToolRegistry`.
+
+```bash
+# Run both FastAPI backend and Streamlit frontend:
+uv run python -m src.langchain_suite.frontend_agent.run_showcase --all
+
+# Or run frontend only (defaults to Pattern A):
+uv run python -m src.langchain_suite.frontend_agent.run_showcase --frontend
+```
+
+

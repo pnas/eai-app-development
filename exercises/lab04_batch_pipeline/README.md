@@ -17,11 +17,19 @@ By migrating to the **Asynchronous Batch API**:
 ## Lab Objectives
 
 1. **Compliant JSONL Generation**:
-   Implement `generate_batch_jsonl()` to serialize records into valid provider batch schemas with unique `custom_id` tracking.
+   Implement `generate_batch_jsonl()` to serialize records into valid provider batch schemas with unique `custom_id` tracking (supporting `/v1/responses` and `/v1/chat/completions`).
 2. **Line-Level Fault Isolation**:
    Implement `process_batch_results()` to parse output JSONL files, handling mixed results (successful responses vs per-line HTTP errors) without throwing unhandled exceptions.
 3. **Audited Financial Reconciler**:
    Calculate exact token consumption (prompt vs completion), comparing standard on-demand cost against the 50% batch rate, and reporting net corporate savings.
+4. **Architectural Evaluation: Batch API vs Flex Processing**:
+   Understand when to use **Asynchronous Batch API** (24h window, separate quotas, full job isolation) vs **Synchronous Flex Processing** (`service_tier: "flex"` with 50% discount, 15m timeout for real-time background jobs).
+
+---
+
+## Reference Documentation
+- [OpenAI Batch API Guide](https://developers.openai.com/api/docs/guides/batch)
+- [OpenAI Flex Processing Guide](https://developers.openai.com/api/docs/guides/flex-processing)
 
 ---
 

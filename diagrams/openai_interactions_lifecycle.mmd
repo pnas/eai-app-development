@@ -1,0 +1,44 @@
+sequenceDiagram
+    autonumber
+    actor Client as Client App (Python / TypeScript)
+    participant Cache as KV-Cache / Prompt Cache Layer
+    participant API as OpenAI Gateway (/v1/responses or /v1/chat/completions)
+    participant Engine as Inference Engine (Speculative Decoding & Reasoning)
+
+    Note over Client,API: 1. Request Dispatch (Dual API Paradigms & Optimization Controls)
+    Client->>API: POST /v1/responses (or /v1/chat/completions)<br/>{model: "gpt-6.1-sol",<br/> service_tier: "fast" | "default" | "flex",<br/> prompt_cache_options: {breakpoint: true},<br/> reasoning: {effort: "medium"},<br/> prediction: {type: "content", content: "existing file content..."},<br/> stream: true}
+
+    Note over API,Cache: 2. Exact Prefix Cache Evaluation
+    API->>Cache: Lookup 1024+ Token Prefix Hash (128-token increment blocks)
+    alt Cache Hit (50% to 95% Discount, TTFT ~80% lower)
+        Cache-->>API: Pre-computed K,V Activation Tensors (Fast-path)
+    else Cache Miss / Cold Write
+        API->>Cache: Compute Prefill & Write KV Tensors (1.25x surcharge / full write)
+    end
+
+    Note over API,Engine: 3. Speculative Decoding & Dynamic Reasoning Execution
+    API->>Engine: Evaluate Prediction & Reasoning Config
+    alt Predicted Outputs Provided
+        Engine->>Engine: Speculative Verification: Check predicted tokens in parallel
+        Engine->>Engine: Accept matching tokens in single forward pass (accepted_prediction_tokens)
+        Engine->>Engine: Autoregressively generate differing tokens (rejected_prediction_tokens)
+    else Standard Decoding
+        Engine->>Engine: Autoregressive token generation
+    end
+    Engine->>Engine: Generate Reasoning Tokens (CoT tokens tracked in usage)
+
+    Note over API,Client: 4. Dual-Phase SSE Streaming Delivery Protocol
+    API-->>Client: event: response.created / message_start
+    loop Phase A: Reasoning Stream
+        API-->>Client: event: response.reasoning.delta (delta.reasoning_content: "Analyzing AST...")
+    end
+    loop Phase B: Output Content Stream
+        API-->>Client: event: response.output_text.delta (delta.content: "export function...")
+    end
+    API-->>Client: event: response.completed (usage details)
+
+    Note over Client: 5. Client Unpacking & Telemetry Reconciler
+    Client->>Client: Parse prompt_tokens_details.cached_tokens (Verify cache hit)
+    Client->>Client: Parse accepted_prediction_tokens vs rejected_prediction_tokens (Latency speedup)
+    Client->>Client: Extract reasoning_tokens from completion_tokens_details
+    Client->>Client: Apply cost arbitrage (Fast 1.75x, Flex 0.50x, or 95% cache discount)

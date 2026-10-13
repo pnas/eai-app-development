@@ -1,0 +1,96 @@
+# LiteLLM Enterprise Proxy Configuration Blueprint
+# Authoritative Documentation: https://docs.litellm.ai/docs/proxy/architecture
+# Run via: litellm --config litellm_proxy_config.yaml --port 4000
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY # Root key for generating virtual keys
+  database_url: os.environ/DATABASE_URL     # PostgreSQL connection for budgets & virtual keys
+  store_model_in_db: true
+  pass_through_endpoints:
+    - "/v1/batches"
+    - "/v1/files"
+
+router_settings:
+  # Routing Strategy: "latency-based-routing", "usage-based-routing-v2", or "simple-shuffle"
+  routing_strategy: "latency-based-routing"
+  enable_pre_call_check: true
+  redis_host: os.environ/REDIS_HOST
+  redis_port: 6379
+  redis_password: os.environ/REDIS_PASSWORD
+  num_retries: 3
+  timeout: 30.0
+  cooldown_time: 60.0 # Time to hold failing deployments out of rotation
+
+model_list:
+  # Tier 1: High-Reasoning Primary (Claude 3.5 Sonnet)
+  - model_name: enterprise-reasoning
+    litellm_params:
+      model: claude-3-5-sonnet-20241022
+      api_key: os.environ/ANTHROPIC_API_KEY
+      rpm: 2000
+      tpm: 80000
+      weight: 3
+    model_info:
+      tier: "high-reasoning"
+      cost_input_per_m: 3.00
+      cost_output_per_m: 15.00
+
+  # Tier 1 Fallback Deployment (Azure / OpenAI GPT-4o)
+  - model_name: enterprise-reasoning
+    litellm_params:
+      model: azure/gpt-4o-eastus
+      api_base: os.environ/AZURE_API_BASE
+      api_key: os.environ/AZURE_API_KEY
+      rpm: 3000
+      tpm: 120000
+      weight: 1
+    model_info:
+      tier: "high-reasoning"
+
+  # Tier 2: Economy & Fast Model (GPT-4o-mini / Gemini Flash)
+  - model_name: enterprise-fast
+    litellm_params:
+      model: gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY
+      rpm: 5000
+      tpm: 200000
+    model_info:
+      tier: "fast-economy"
+      cost_input_per_m: 0.15
+      cost_output_per_m: 0.60
+
+  # Tier 2 Fallback (Google Gemini 1.5 Flash)
+  - model_name: enterprise-fast
+    litellm_params:
+      model: gemini/gemini-1.5-flash
+      api_key: os.environ/GEMINI_API_KEY
+      rpm: 4000
+
+litellm_settings:
+  # Exact & Semantic Caching Configuration
+  cache: true
+  cache_params:
+    type: "redis-semantic"
+    host: os.environ/REDIS_HOST
+    port: 6379
+    password: os.environ/REDIS_PASSWORD
+    similarity_threshold: 0.85
+    redis_semantic_cache_embedding_model: "openai/text-embedding-3-small"
+    ttl: 86400 # 24 hours
+
+  # In-line Guardrails
+  guardrails:
+    - guardrail_name: "content-filter"
+      litellm_params:
+        guardrail: content_filter
+        mode: "pre_call"
+
+    - guardrail_name: "presidio-pii"
+      litellm_params:
+        guardrail: presidio
+        mode: "pre_call"
+        default_on: true
+
+  # Telemetry & Callbacks
+  success_callback: ["otel", "prometheus"]
+  failure_callback: ["otel"]

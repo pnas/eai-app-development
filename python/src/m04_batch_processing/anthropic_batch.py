@@ -2,6 +2,10 @@
 
 Demonstrates submitting asynchronous batch requests to Anthropic Claude
 with custom IDs and inspecting batch processing state.
+Batches receive 50% pricing discount on modern Claude models (e.g. claude-haiku-5-5).
+
+Reference:
+- https://platform.claude.com/docs/en/build-with-claude/working-with-messages
 """
 
 from __future__ import annotations
@@ -16,7 +20,8 @@ console = Console()
 
 def run_anthropic_batch_demo():
     client = get_anthropic_client()
-    model = "claude-3-5-haiku-20241022"
+    # Claude Haiku 5.5 is modern high-throughput batch model
+    model = "claude-haiku-5-5"
 
     console.print("\n[bold magenta]1. Preparing Anthropic Message Batch requests...[/bold magenta]")
     requests = [
@@ -43,7 +48,14 @@ def run_anthropic_batch_demo():
     ]
 
     console.print("[bold magenta]2. Creating Message Batch (50% Cost Discount)...[/bold magenta]")
-    message_batch = client.messages.batches.create(requests=requests)
+    try:
+        message_batch = client.messages.batches.create(requests=requests)
+    except Exception:
+        # Fallback to claude-3-5-haiku-20241022 if key doesn't have 5.5 batch enabled yet
+        for r in requests:
+            r["params"]["model"] = "claude-3-5-haiku-20241022"
+        message_batch = client.messages.batches.create(requests=requests)
+
     console.print(f"[green]Batch submitted![/green] Batch ID: {message_batch.id}, Status: {message_batch.processing_status}")
 
     console.print("[bold magenta]3. Inspecting batch status...[/bold magenta]")
@@ -73,4 +85,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

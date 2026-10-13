@@ -43,26 +43,37 @@ Only Syntactically Valid Tokens Can Physically Be Sampled!
 
 - **OpenAI**: Strict Structured Outputs (`strict: true`).
 - **Google Gemini**: `response_schema` with grammar guidance.
-- **Anthropic**: Constrained schema via forced tool call.
+- **Anthropic**: Native Structured Outputs (`output_config.format` & `client.messages.parse`) plus strict tool calling (`strict: true`).
 
 ---
 
-# 3. Provider Implementations
+# 3. Provider Implementations (OpenAI & Gemini)
 
-### OpenAI Strict JSON Schema
+### OpenAI Responses API & Chat Completions Strict JSON
 ```python
-client.beta.chat.completions.parse(
-    model="gpt-4o",
+# Modern Responses API (gpt-6.1-sol / gpt-4.1)
+response = client.responses.create(
+    model="gpt-6.1-sol",
+    input="Extract customer record from: Alice Smith, 34, engineer in Berlin",
+    response_format={
+        "type": "json_schema",
+        "json_schema": {"name": "CustomerRecord", "strict": True, "schema": CustomerRecord.model_json_schema()}
+    }
+)
+
+# Chat Completions SDK parse helper (gpt-4.1 / gpt-4o)
+completion = client.beta.chat.completions.parse(
+    model="gpt-4.1",
     messages=[{"role": "user", "content": "Extract customer data..."}],
     response_format=CustomerRecord,  # Pydantic v2 Model
 )
 ```
-*Note: OpenAI requires `"additionalProperties": false` across all nested objects.*
+*Note: OpenAI requires `"additionalProperties": false` across all nested object definitions.*
 
 ### Google Gemini Structured Outputs
 ```python
 client.models.generate_content(
-    model="gemini-1.5-pro",
+    model="gemini-3.8-flash",
     contents="Extract customer data...",
     config=types.GenerateContentConfig(
         response_mime_type="application/json",
@@ -73,28 +84,66 @@ client.models.generate_content(
 
 ---
 
-# 4. Anthropic Structured Output Pattern
+# 4. Predicted Outputs: Speculative Structured Updates
 
-Anthropic Claude natively supports constrained tool-use:
+When updating existing code or large JSON payloads, most tokens remain identical:
 
 ```python
-response = client.messages.create(
-    model="claude-3-5-sonnet-20241022",
-    max_tokens=1024,
-    tools=[{
-        "name": "record_customer",
-        "description": "Record structured customer profile",
-        "input_schema": CustomerRecord.model_json_schema()
-    }],
-    tool_choice={"type": "tool", "name": "record_customer"},
-    messages=[{"role": "user", "content": "Extract customer data..."}]
+# OpenAI Predicted Outputs (gpt-4.1 / gpt-4o)
+completion = client.chat.completions.create(
+    model="gpt-4.1",
+    messages=[
+        {"role": "user", "content": "Update user email to alice@newcorp.com:\n" + original_json}
+    ],
+    response_format={"type": "json_object"},
+    prediction={
+        "type": "content",
+        "content": original_json  # Model speculatively validates existing tokens
+    }
 )
-# Result is guaranteed to be in response.content[0].input
 ```
+
+**Why This Matters for Structured Latency**:
+- **Speculative Decoding**: The model verifies matching tokens in parallel rather than sampling autoregressively token-by-token.
+- **Latency Acceleration**: 2x to 4x reduction in total completion latency for edits/refactoring.
+- **Token Accounting**:
+  - `usage.completion_tokens_details.accepted_prediction_tokens`: Tokens successfully verified.
+  - `usage.completion_tokens_details.rejected_prediction_tokens`: Modified/divergent tokens.
+  - Compatible with SSE streaming!
 
 ---
 
-# 5. Remaining Edge Cases & The Self-Repair Loop
+# 5. Anthropic Native Structured Outputs Pattern
+
+Claude supports native JSON Schema extraction via SDK `parse` or `output_config.format`:
+
+```python
+# 1. Native Typed Extraction via SDK parse helper (Pydantic v2)
+response = client.messages.parse(
+    model="claude-sonnet-5-5",
+    max_tokens=1024,
+    output_format=CustomerRecord,
+    messages=[{"role": "user", "content": "Extract customer data..."}]
+)
+customer: CustomerRecord = response.parsed_output
+
+# 2. Wire Protocol via output_config.format
+response = client.messages.create(
+    model="claude-sonnet-5-5",
+    max_tokens=1024,
+    output_config={"format": {"type": "json_schema", "schema": CustomerRecord.model_json_schema()}},
+    messages=[{"role": "user", "content": "Extract customer data..."}]
+)
+```
+
+> [!NOTE] Architectural Guardrails
+> - **Grammar Caching**: Anthropic caches compiled JSON schema grammars for **24 hours**.
+> - **Strict Tools**: Tools support `"strict": true` with `"additionalProperties": false`.
+> - **Incompatibility**: Structured outputs **cannot** be combined with Citations or Message Prefilling (returns HTTP 400).
+
+---
+
+# 6. Remaining Edge Cases & The Self-Repair Loop
 
 Even with constrained decoding, two production issues remain:
 
@@ -106,4 +155,5 @@ Even with constrained decoding, two production issues remain:
 
 **The Self-Repair Loop**:
 Feed the partial output and the validation error back to the model with an explicit instruction to continue/repair the schema.
+
 

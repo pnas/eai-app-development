@@ -1,0 +1,41 @@
+sequenceDiagram
+    autonumber
+    actor User as User Browser
+    participant ST as Streamlit Frontend (:8501)
+    participant API as FastAPI Backend (:8000)
+    participant LG as LangGraph Agent
+    participant Tool as Tool Registry
+    participant LLM as LLM Provider
+
+    User->>ST: Submits Prompt ("What time is it in Tokyo?")
+    ST->>API: POST /agent/chat/stream {prompt, thread_id}
+    Note over API: Handshake HTTP 200 OK<br/>Content-Type: text/event-stream
+    API-->>ST: HTTP 200 (Stream Open)
+
+    API->>LG: astream_agent_lifecycle(messages, thread_id)
+    LG->>LLM: Model.bind_tools().invoke(messages)
+    LLM-->>LG: AIMessage(tool_calls=[get_current_time(timezone='Asia/Tokyo')])
+
+    LG-->>API: on_tool_start event
+    API-->>ST: event: tool_start\ndata: {"tool": "get_current_time", ...}
+    Note over ST: Render st.status("Executing get_current_time...")
+
+    LG->>Tool: get_current_time(timezone="Asia/Tokyo")
+    Tool-->>LG: "Current Time in Asia/Tokyo: 2026-10-11 04:17:34 JST"
+
+    LG-->>API: on_tool_end event
+    API-->>ST: event: tool_end\ndata: {"output": "2026-10-11 04:17:34 JST"}
+    Note over ST: Update st.status to Complete ✅
+
+    LG->>LLM: Model.invoke(messages + ToolMessage)
+    LLM-->>LG: Stream token chunks: "The", " time", " in", " Tokyo", " is"...
+
+    loop Token Streaming
+        LG-->>API: on_chat_model_stream (chunk)
+        API-->>ST: event: token\ndata: {"content": "..."}
+        Note over ST: Append chunk to st.chat_message
+    end
+
+    LG-->>API: on_chain_end
+    API-->>ST: event: done\ndata: {"status": "completed"}
+    Note over ST: Finalize message & persist in session_state

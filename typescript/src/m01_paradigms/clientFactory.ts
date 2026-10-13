@@ -1,9 +1,9 @@
 import OpenAI from "openai";
 import Anthropic from "@anthropic-ai/sdk";
 import { GoogleGenAI } from "@google/genai";
-import dotenv from "dotenv";
+import { loadWorkspaceEnv } from "../langchain_suite/core/env.js";
 
-dotenv.config();
+loadWorkspaceEnv();
 
 export function getOpenAIClient(): OpenAI {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -22,9 +22,9 @@ export function getAnthropicClient(): Anthropic {
 }
 
 export function getGeminiClient(): GoogleGenAI {
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) {
-    throw new Error("Missing GEMINI_API_KEY environment variable. Check .env");
+    throw new Error("Missing GEMINI_API_KEY (or GOOGLE_API_KEY) environment variable. Check .env");
   }
   return new GoogleGenAI({ apiKey });
 }

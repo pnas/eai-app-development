@@ -39,23 +39,25 @@ The validation / syntax error was:
 Fix all syntax errors, close any unclosed brackets or strings, and return ONLY
 a valid JSON object adhering strictly to the required schema.
 """
-        response = client.beta.chat.completions.parse(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are an automated JSON schema repair engine."},
-                {"role": "user", "content": repair_prompt},
-            ],
-            response_format=SystemArchitectureSpec,
-        )
+        models = ["gpt-4.1-mini", "gpt-4o-mini"]
+        for model in models:
+            try:
+                response = client.beta.chat.completions.parse(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": "You are an automated JSON schema repair engine."},
+                        {"role": "user", "content": repair_prompt},
+                    ],
+                    response_format=SystemArchitectureSpec,
+                )
 
-        try:
-            parsed = response.choices[0].message.parsed
-            if parsed:
-                console.print("[bold green]Successfully repaired JSON schema![/bold green]")
-                return parsed
-        except Exception as e:
-            current_error = str(e)
-            current_payload = response.choices[0].message.content or ""
+                parsed = response.choices[0].message.parsed
+                if parsed:
+                    console.print(f"[bold green]Successfully repaired JSON schema using {model}![/bold green]")
+                    return parsed
+            except Exception as e:
+                current_error = str(e)
+                console.print(f"[yellow]Repair attempt with {model} failed: {e}[/yellow]")
 
     raise RuntimeError(f"Failed to repair payload after {max_repair_attempts} attempts.")
 

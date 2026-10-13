@@ -1,0 +1,35 @@
+stateDiagram-v2
+    [*] --> PrimaryHealthy: Incoming Request
+
+    state PrimaryHealthy {
+        [*] --> ClaudeSonnet: Route to Primary Model
+        ClaudeSonnet --> Success200: HTTP 200 OK
+        ClaudeSonnet --> PrimaryError: HTTP 429 / 500 / Timeout
+    }
+
+    Success200 --> [*]: Return Payload & Update Telemetry
+
+    PrimaryError --> TriggerCooldown: Record Failure Count (>= 3)
+    TriggerCooldown --> SecondaryFallback: Initiate Cooldown (60s)
+
+    state SecondaryFallback {
+        [*] --> OpenAIGpt4o: Route to Backup Model
+        OpenAIGpt4o --> Success200: HTTP 200 OK
+        OpenAIGpt4o --> SecondaryError: Backup Failure (429/500)
+    }
+
+    SecondaryError --> TertiaryFallback: Cascade to Final Safety Tier
+
+    state TertiaryFallback {
+        [*] --> GeminiFlash: Route to Fast/Light Model
+        GeminiFlash --> Success200: HTTP 200 OK
+        GeminiFlash --> CircuitBreakerOpen: All Providers Exhausted
+    }
+
+    state CircuitBreakerOpen {
+        [*] --> FastFail: Immediate 503 Service Unavailable
+        FastFail --> HalfOpenCheck: After 30s Cooldown
+    }
+
+    HalfOpenCheck --> PrimaryHealthy: Probe Request Succeeds
+    HalfOpenCheck --> CircuitBreakerOpen: Probe Fails

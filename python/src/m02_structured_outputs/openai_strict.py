@@ -23,25 +23,36 @@ during database backups. The team estimates running costs around $4,200/month.
 
 def extract_with_openai_strict() -> SystemArchitectureSpec:
     client = get_openai_client()
+    models = ["gpt-4.1-mini", "gpt-4.1", "gpt-4o-2024-08-06"]
+    last_error: Exception | None = None
 
-    console.print("[cyan]Sending request to OpenAI with strict Pydantic grammar...[/cyan]")
-    # Using the beta parse method automatically injects json_schema with strict: True
-    completion = client.beta.chat.completions.parse(
-        model="gpt-4o-2024-08-06",
-        messages=[
-            {"role": "system", "content": "You are a Principal Cloud Systems Architect."},
-            {"role": "user", "content": ARCH_PROMPT},
-        ],
-        response_format=SystemArchitectureSpec,
-    )
+    for model in models:
+        try:
+            console.print(f"[cyan]Sending request to OpenAI ({model}) with strict Pydantic grammar...[/cyan]")
+            # Using the beta parse method automatically injects json_schema with strict: True
+            completion = client.beta.chat.completions.parse(
+                model=model,
+                messages=[
+                    {"role": "system", "content": "You are a Principal Cloud Systems Architect."},
+                    {"role": "user", "content": ARCH_PROMPT},
+                ],
+                response_format=SystemArchitectureSpec,
+            )
 
-    message = completion.choices[0].message
-    # If the response was refused due to safety policy, refusal is populated
-    if message.refusal:
-        raise RuntimeError(f"Model refused output: {message.refusal}")
+            message = completion.choices[0].message
+            # If the response was refused due to safety policy, refusal is populated
+            if message.refusal:
+                raise RuntimeError(f"Model refused output: {message.refusal}")
 
-    parsed_spec: SystemArchitectureSpec = message.parsed
-    return parsed_spec
+            parsed_spec: SystemArchitectureSpec = message.parsed
+            return parsed_spec
+        except Exception as e:
+            console.print(f"[yellow]OpenAI call with {model} failed: {e}. Trying fallback...[/yellow]")
+            last_error = e
+
+    if last_error:
+        raise last_error
+    raise RuntimeError("No models were attempted.")
 
 
 def main():

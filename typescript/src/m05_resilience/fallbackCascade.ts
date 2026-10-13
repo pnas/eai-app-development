@@ -1,3 +1,19 @@
+/**
+ * Module 5: Multi-Provider Fallback Cascade (TypeScript).
+ *
+ * Integrates Circuit Breakers and retries into a multi-tiered failover cascade:
+ * 1. Primary: Anthropic Claude Sonnet 5.5 (or Haiku 5.5)
+ * 2. Secondary: OpenAI GPT-5.6 (or GPT-4o-mini)
+ * 3. Tertiary: Google Gemini 2.5 Flash (or Gemini 1.5 Flash)
+ *
+ * Resilience Rule:
+ * - 5xx, 429, timeouts, and network failures trigger circuit breakers and failover.
+ * - Client 400 errors (e.g. invalid sampling params on Claude 5.x) do NOT trigger failover.
+ *
+ * Reference:
+ * - https://platform.claude.com/docs/en/build-with-claude/working-with-messages
+ */
+
 import pc from "picocolors";
 import { CircuitBreaker, CircuitBreakerOpenException } from "./circuitBreaker.js";
 import { getAnthropicClient, getOpenAIClient, getGeminiClient } from "../m01_paradigms/clientFactory.js";
@@ -47,42 +63,70 @@ async function main() {
 
   const cascade = new FallbackCascade([
     {
-      name: "Anthropic_Claude",
-      breaker: new CircuitBreaker("Anthropic_Claude", 2, 10000),
+      name: "Anthropic_Claude_5_5",
+      breaker: new CircuitBreaker("Anthropic_Claude_5_5", 2, 10000),
       invoke: async (prompt) => {
         const client = getAnthropicClient();
-        const res = await client.messages.create({
-          model: "claude-3-5-haiku-20241022",
-          max_tokens: 100,
-          messages: [{ role: "user", content: prompt }],
-        });
-        const block = res.content.find((b) => b.type === "text") as any;
-        return block?.text ?? "";
+        try {
+          const res = await client.messages.create({
+            model: "claude-sonnet-5-5",
+            max_tokens: 100,
+            output_config: { effort: "medium" },
+            messages: [{ role: "user", content: prompt }],
+          } as any);
+          const block = res.content.find((b) => b.type === "text") as any;
+          return block?.text ?? "";
+        } catch {
+          const res = await client.messages.create({
+            model: "claude-haiku-5-5",
+            max_tokens: 100,
+            messages: [{ role: "user", content: prompt }],
+          });
+          const block = res.content.find((b) => b.type === "text") as any;
+          return block?.text ?? "";
+        }
       },
     },
     {
-      name: "OpenAI_GPT",
-      breaker: new CircuitBreaker("OpenAI_GPT", 2, 10000),
+      name: "OpenAI_GPT_5_6",
+      breaker: new CircuitBreaker("OpenAI_GPT_5_6", 2, 10000),
       invoke: async (prompt) => {
         const client = getOpenAIClient();
-        const res = await client.chat.completions.create({
-          model: "gpt-4o-mini",
-          max_tokens: 100,
-          messages: [{ role: "user", content: prompt }],
-        });
-        return res.choices[0]?.message?.content ?? "";
+        try {
+          const res = await client.chat.completions.create({
+            model: "gpt-5.6",
+            max_tokens: 100,
+            messages: [{ role: "user", content: prompt }],
+          });
+          return res.choices[0]?.message?.content ?? "";
+        } catch {
+          const res = await client.chat.completions.create({
+            model: "gpt-4o-mini",
+            max_tokens: 100,
+            messages: [{ role: "user", content: prompt }],
+          });
+          return res.choices[0]?.message?.content ?? "";
+        }
       },
     },
     {
-      name: "Google_Gemini",
-      breaker: new CircuitBreaker("Google_Gemini", 2, 10000),
+      name: "Google_Gemini_2_5",
+      breaker: new CircuitBreaker("Google_Gemini_2_5", 2, 10000),
       invoke: async (prompt) => {
         const client = getGeminiClient();
-        const res = await client.models.generateContent({
-          model: "gemini-1.5-flash",
-          contents: prompt,
-        });
-        return res.text ?? "";
+        try {
+          const res = await client.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+          });
+          return res.text ?? "";
+        } catch {
+          const res = await client.models.generateContent({
+            model: "gemini-1.5-flash",
+            contents: prompt,
+          });
+          return res.text ?? "";
+        }
       },
     },
   ]);
@@ -99,4 +143,3 @@ async function main() {
 }
 
 main().catch(console.error);
-

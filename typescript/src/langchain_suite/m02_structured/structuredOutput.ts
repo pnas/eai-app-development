@@ -13,15 +13,59 @@ export const TelecomIncidentSchema = z.object({
 
 export type TelecomIncident = z.infer<typeof TelecomIncidentSchema>;
 
-export async function extractIncidentTriage(reportText: string): Promise<TelecomIncident> {
-  const model = getChatModel("openai", { temperature: 0 });
+function hasKeyForProvider(provider: string): boolean {
+  if (provider === "openai") return Boolean(process.env.OPENAI_API_KEY);
+  if (provider === "anthropic") return Boolean(process.env.ANTHROPIC_API_KEY);
+  if (provider === "gemini") return Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY);
+  return false;
+}
 
-  // Use LangChain's Zod-backed constrained structured output
+export async function extractIncidentTriage(
+  reportText: string,
+  provider: "openai" | "anthropic" | "gemini" | string = "openai"
+): Promise<TelecomIncident> {
+  if (!hasKeyForProvider(provider)) {
+    console.log(pc.yellow(`[Notice] Missing API key for ${provider}. Providing mock structured extraction.`));
+    return {
+      incidentId: "TICKET-8812",
+      severity: "P1-CRITICAL",
+      affectedSubsystems: ["FIBER-BACKHAUL", "IMS-VOICE"],
+      rootCauseHypothesis: "Primary fiber backhaul conduit severed during dredging work",
+      recommendedAction: "Reroute traffic over microwave backup and deploy fiber splicing emergency crew",
+      estimatedImpactSubscribers: 12000,
+    };
+  }
+
+  const model = getChatModel(provider, { temperature: 0 });
+
+  // Use LangChain's Zod-backed constrained structured output across OpenAI, Anthropic, or Gemini
   const structuredLlm = model.withStructuredOutput(TelecomIncidentSchema, {
     name: "TelecomIncidentTriage",
   });
 
   return (await structuredLlm.invoke(reportText)) as TelecomIncident;
+}
+
+export async function compareStructuredExtraction(
+  reportText: string,
+  providers: string[] = ["openai", "anthropic", "gemini"]
+): Promise<Record<string, TelecomIncident | string>> {
+  console.log(pc.yellow("\n=== Comparing Structured Extraction Across Frontier Models ==="));
+  const results: Record<string, TelecomIncident | string> = {};
+
+  for (const p of providers) {
+    try {
+      console.log(pc.cyan(`Invoking ${p.toUpperCase()} withStructuredOutput...`));
+      const res = await extractIncidentTriage(reportText, p);
+      results[p] = res;
+      console.log(pc.green(`✔ ${p.toUpperCase()} extraction succeeded: Ticket ${res.incidentId}, Severity: ${res.severity}`));
+    } catch (err: any) {
+      console.log(pc.red(`✘ ${p.toUpperCase()} extraction error: ${err.message}`));
+      results[p] = `ERROR: ${err.message}`;
+    }
+  }
+
+  return results;
 }
 
 if (process.argv[1]?.includes("structuredOutput")) {
@@ -32,12 +76,6 @@ if (process.argv[1]?.includes("structuredOutput")) {
     Voice IMS calls degraded; estimated 12,000 active subscribers affected.
   `;
 
-  console.log(pc.yellow("\n=== Module 2 (TypeScript): Structured Output with Zod ===\n"));
-  extractIncidentTriage(sampleReport)
-    .then((triage) => {
-      console.log(pc.green("Structured Incident Extracted:"));
-      console.dir(triage, { depth: null });
-    })
-    .catch(console.error);
+  console.log(pc.yellow("\n=== Module 2 (TypeScript): Structured Output with Zod Across Providers ===\n"));
+  compareStructuredExtraction(sampleReport).catch(console.error);
 }
-

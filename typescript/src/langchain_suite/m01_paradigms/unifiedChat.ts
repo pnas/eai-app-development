@@ -3,7 +3,7 @@ import pc from "picocolors";
 import { getChatModel } from "../core/models.js";
 import { AuditTelemetryHandler } from "../core/telemetry.js";
 
-async function compareUnifiedChat(prompt: string, systemPrompt: string) {
+export async function compareUnifiedChat(prompt: string, systemPrompt: string) {
   const providers: Array<"openai" | "anthropic" | "gemini"> = ["openai", "anthropic", "gemini"];
   const telemetry = new AuditTelemetryHandler(false);
 

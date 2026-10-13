@@ -1,0 +1,47 @@
+sequenceDiagram
+    autonumber
+    actor Client as Client Application (Python / TypeScript)
+    participant API as Gemini Interactions API (/v1beta/interactions)
+    participant Model as Gemini 3.8 Flash (Autonomous Agent Engine)
+    participant Tool as Local Application Tool
+
+    Note over Client,API: Turn 1: Initial Prompt with Tools & Extended Thinking Enabled
+    Client->>API: POST /v1beta/interactions<br/>{model: "gemini-3.8-flash", input: "...", stream: true, tools: [...], generation_config: {thinking_summaries: "auto"}}
+    Note over API: HTTP 200 OK (Content-Type: text/event-stream)
+    API-->>Client: event: interaction.created<br/>data: {id: "inter_948a2", model: "gemini-3.8-flash", status: "in_progress"}
+
+    rect rgb(238, 246, 255)
+        Note over API,Model: Extended Thinking Phase
+        API-->>Client: event: step.start<br/>data: {step: {type: "thought"}}
+        loop Thought Streaming
+            Model-->>API: Stream internal reasoning
+            API-->>Client: event: step.delta<br/>data: {delta: {type: "thought_summary", content: {text: "Evaluating database metrics..."}}}
+        end
+        API-->>Client: event: step.delta<br/>data: {delta: {type: "thought_signature", signature: "eyJhbG..."}}
+        API-->>Client: event: step.stop<br/>data: {step: {type: "thought", status: "completed"}}
+    end
+
+    rect rgb(254, 247, 237)
+        Note over API,Model: Function Call Prediction Phase
+        API-->>Client: event: step.start<br/>data: {step: {type: "function_call", name: "get_service_health"}}
+        loop Arguments Accumulation
+            Model-->>API: Stream JSON arguments delta
+            API-->>Client: event: step.delta<br/>data: {delta: {type: "arguments_delta", arguments: '{"serviceName": "db-service"}'}}
+        end
+        API-->>Client: event: step.stop<br/>data: {step: {type: "function_call", status: "completed"}}
+        API-->>Client: event: interaction.completed<br/>data: {id: "inter_948a2", status: "requires_action"}
+    end
+
+    Note over Client,Tool: Local Execution Phase
+    Client->>Tool: get_service_health(serviceName="db-service")
+    Tool-->>Client: {"status": "HEALTHY", "latency_ms": 22.4}
+
+    Note over Client,API: Turn 2: State Resumption via previous_interaction_id
+    Client->>API: POST /v1beta/interactions<br/>{previous_interaction_id: "inter_948a2", input: [{type: "function_result", ...}], stream: true}
+    API-->>Client: event: step.start<br/>data: {step: {type: "content"}}
+    loop Text Response Streaming
+        Model-->>API: Stream tokens
+        API-->>Client: event: step.delta<br/>data: {delta: {type: "text", text: "The db-service is healthy..."}}
+    end
+    API-->>Client: event: step.stop<br/>data: {step: {type: "content", status: "completed"}}
+    API-->>Client: event: interaction.completed<br/>data: {id: "inter_948a2", status: "completed"}

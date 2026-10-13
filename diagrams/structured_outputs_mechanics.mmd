@@ -1,10 +1,9 @@
-```mermaid
 flowchart TD
     subgraph Prompting ["1. Unconstrained JSON Mode (Legacy)"]
         direction TB
         Prompt1["System: Return JSON matching schema {...}"]
         Sampling1["Standard Autoregressive Sampling (Softmax over full vocab)"]
-        Risk1["⚠️ Vulnerable to schema drift, hallucinated keys, markdown fences (```json), syntax errors"]
+        Risk1["⚠️ Vulnerable to schema drift, hallucinated keys, markdown fences, syntax errors"]
         Prompt1 --> Sampling1 --> Risk1
     end
 
@@ -24,5 +23,3 @@ flowchart TD
     end
 
     Guaranteed -.-> Failure_Modes
-```
-

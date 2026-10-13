@@ -1,0 +1,49 @@
+sequenceDiagram
+    autonumber
+    actor Client as Microservice App
+    participant GW as Gateway Ingress (Virtual Key Auth)
+    participant Guard as Pre/Post Guardrail
+    participant Cache as Redis (Exact & Semantic Cache)
+    participant Router as Model Router & LB
+    participant Primary as Primary LLM (e.g. Claude 3.5 Sonnet)
+    participant Fallback as Fallback LLM (e.g. GPT-4o)
+    participant Telemetry as Telemetry & Spend Audit
+
+    Client->>GW: POST /v1/chat/completions (Bearer sk-team-virtual-key)
+    Note over GW: 1. Validate key authenticity<br/>2. Enforce monthly budget & RPM/TPM limits
+
+    alt Budget Exceeded
+        GW-->>Client: 400 Bad Request (BudgetExceededError)
+    else Budget Valid
+        GW->>Guard: Inspect payload for prompt injection & PII
+        Note over Guard: Scrub sensitive tokens: [REDACTED_EMAIL]
+        Guard->>Cache: Query SHA-256 hash & Vector Embedding
+
+        alt Cache Hit (Exact or Semantic Similarity >= 0.85)
+            Cache-->>GW: Return Cached Response (0ms LLM Latency, $0.00 Cost)
+            GW->>Telemetry: Emit Cache-Hit Span (OTel)
+            GW-->>Client: 200 OK (Instant Cached Completion)
+        else Cache Miss
+            Cache-->>Router: Cache Miss: Proceed to dispatch
+            Router->>Primary: POST /v1/chat/completions (Primary Deployment)
+
+            alt Primary Provider Fails (HTTP 429 Rate Limit or 503 Outage)
+                Primary-->>Router: HTTP 429 Too Many Requests
+                Note over Router: Activate Fallback Cascade & trigger cooldown
+                Router->>Fallback: POST /v1/chat/completions (Backup Provider)
+                Fallback-->>Router: 200 OK (Response Generated)
+                Router->>Cache: Asynchronously store response in Redis
+                Router->>Guard: Evaluate output moderation & JSON schema
+                Guard->>Telemetry: Record token spend, latency, and fallback attribution
+                Telemetry-->>GW: Metric recorded against virtual key
+                GW-->>Client: 200 OK (Response with x-litellm-model: gpt-4o)
+            else Primary Provider Succeeds
+                Primary-->>Router: 200 OK (Response Generated)
+                Router->>Cache: Store response with 24h TTL
+                Router->>Guard: Evaluate output moderation & JSON schema
+                Guard->>Telemetry: Record token spend against virtual key
+                Telemetry-->>GW: Spend updated in PostgreSQL
+                GW-->>Client: 200 OK (Response with x-litellm-model: claude-3-5-sonnet)
+            end
+        end
+    end

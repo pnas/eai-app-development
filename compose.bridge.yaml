@@ -1,0 +1,88 @@
+# Podman Compose configuration for Decoupled Streamlit Retrieval Agent
+# Architecture:
+# - backend: FastAPI agent microservice with SSE streaming & simple retrieval (Port 8000)
+# - frontend: Streamlit UI consuming agent events via SSE (Port 8501)
+
+name: advanced-ai-retrieval-agent
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Containerfile
+      target: backend
+    container_name: agent-backend
+    image: localhost/agent-backend:latest
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: ./python/.env
+        required: false
+      - path: ./.env
+        required: false
+    environment:
+      - PYTHONUNBUFFERED=1
+      - AGENT_MOCK_MODE=${AGENT_MOCK_MODE:-false}
+      - RESOURCES_DIR=/app/docs/resources
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-${GEMINI_API_KEY:-}}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+    volumes:
+      - ./docs/resources:/app/docs/resources:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - agent-net
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Containerfile
+      target: frontend
+    container_name: agent-frontend
+    image: localhost/agent-frontend:latest
+    ports:
+      - "8501:8501"
+    env_file:
+      - path: ./python/.env
+        required: false
+      - path: ./.env
+        required: false
+    environment:
+      - PYTHONUNBUFFERED=1
+      - STREAMLIT_AGENT_MODE=remote
+      - AGENT_BACKEND_URL=http://backend:8000
+      - AGENT_DEFAULT_PROVIDER=${AGENT_DEFAULT_PROVIDER:-mock}
+      - RESOURCES_DIR=/app/docs/resources
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY:-${GEMINI_API_KEY:-}}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - STREAMLIT_SERVER_PORT=8501
+      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - agent-net
+
+networks:
+  agent-net:
+    driver: bridge

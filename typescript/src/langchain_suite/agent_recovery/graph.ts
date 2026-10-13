@@ -28,7 +28,7 @@ export const AgentState = Annotation.Root({
 });
 
 export function buildTelecomAgent(checkpointer?: BaseCheckpointSaver) {
-  const model = getChatModel("openai", { model: "gpt-4o-mini", temperature: 0 }).bindTools(agentTools);
+  const model = (getChatModel("openai", { model: "gpt-4o-mini", temperature: 0 }) as any).bindTools(agentTools);
 
   async function agentNode(state: typeof AgentState.State) {
     let messages = state.messages;

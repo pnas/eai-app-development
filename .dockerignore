@@ -1,0 +1,17 @@
+.git
+.gitignore
+.venv
+venv
+**/node_modules
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.pytest_cache
+*.log
+brain
+.system_generated
+dist
+build
+.env
+.env.local

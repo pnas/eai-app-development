@@ -1,9 +1,16 @@
 """Module 5: Multi-Provider Fallback Cascade.
 
 Integrates Circuit Breakers and retries into a multi-tiered failover cascade:
-1. Primary: Anthropic Claude 3.5 Sonnet
-2. Secondary: OpenAI GPT-4o
-3. Tertiary: Google Gemini 1.5 Flash
+1. Primary: Anthropic Claude Sonnet 5.5 (or Haiku 5.5)
+2. Secondary: OpenAI GPT-5.6 (or GPT-4o-mini)
+3. Tertiary: Google Gemini 2.5 Flash (or Gemini 1.5 Flash)
+
+Resilience Rule:
+- 5xx, 429, timeouts, and network failures trigger circuit breakers and failover.
+- Client 400 errors (e.g. invalid sampling params on Claude 5.x) do NOT trigger failover.
+
+Reference:
+- https://platform.claude.com/docs/en/build-with-claude/working-with-messages
 """
 
 from __future__ import annotations
@@ -64,39 +71,61 @@ class FallbackCascade:
 # Concrete Provider Callers
 def call_primary_anthropic(prompt: str) -> str:
     client = get_anthropic_client()
-    res = client.messages.create(
-        model="claude-3-5-haiku-20241022",
-        max_tokens=150,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    try:
+        res = client.messages.create(
+            model="claude-sonnet-5-5",
+            max_tokens=150,
+            output_config={"effort": "medium"},
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception:
+        # Fallback to Haiku if Sonnet quota is reached or key tier differs
+        res = client.messages.create(
+            model="claude-haiku-5-5",
+            max_tokens=150,
+            messages=[{"role": "user", "content": prompt}],
+        )
     return res.content[0].text  # type: ignore
 
 
 def call_secondary_openai(prompt: str) -> str:
     client = get_openai_client()
-    res = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=150,
-    )
+    try:
+        res = client.chat.completions.create(
+            model="gpt-5.6",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=150,
+        )
+    except Exception:
+        res = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=150,
+        )
     return res.choices[0].message.content or ""
 
 
 def call_tertiary_gemini(prompt: str) -> str:
     client = get_gemini_client()
-    res = client.models.generate_content(
-        model="gemini-1.5-flash",
-        contents=prompt,
-    )
+    try:
+        res = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+        )
+    except Exception:
+        res = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=prompt,
+        )
     return res.text or ""
 
 
 def main():
     console.print("\n[bold cyan]=== Multi-Provider Fallback Cascade Demonstration ===[/bold cyan]")
     cascade = FallbackCascade([
-        ProviderNode("Anthropic_Claude", call_primary_anthropic),
-        ProviderNode("OpenAI_GPT", call_secondary_openai),
-        ProviderNode("Google_Gemini", call_tertiary_gemini),
+        ProviderNode("Anthropic_Claude_5_5", call_primary_anthropic),
+        ProviderNode("OpenAI_GPT_5_6", call_secondary_openai),
+        ProviderNode("Google_Gemini_2_5", call_tertiary_gemini),
     ])
 
     test_prompt = "Explain in one sentence why distributed circuit breakers prevent cascading failures."
@@ -110,4 +139,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

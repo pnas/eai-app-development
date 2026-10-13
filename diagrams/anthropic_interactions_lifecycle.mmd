@@ -1,0 +1,40 @@
+sequenceDiagram
+    autonumber
+    actor Client as Client App (Python / TypeScript)
+    participant Cache as KV-Cache / Prompt Cache Layer
+    participant API as Anthropic Messages API (Claude 5.5 / 5.x)
+    participant Engine as Inference Engine (Reasoning & Strict CFG)
+
+    Note over Client,API: 1. Request Dispatch (No temperature/top_p allowed on 4.7+/5.x)
+    Client->>API: POST /v1/messages<br/>{model: "claude-sonnet-5-5",<br/> system: [{type: "text", text: "...", cache_control: {type: "ephemeral"}}],<br/> messages: [...],<br/> output_config: {effort: "medium", format: {type: "json_schema", schema: ...}},<br/> tools: [{name: "...", strict: true, input_schema: ...}]}
+
+    Note over API,Cache: 2. Exact Prefix Cache Evaluation
+    API->>Cache: Lookup Prefix Hash (System + Document Blocks + History)
+    alt Cache Hit (90%–95% Discount)
+        Cache-->>API: Pre-computed K,V Activation Tensors (Fast-path)
+    else Cache Miss / Cold Write
+        API->>Cache: Compute Prefill & Write KV Tensors (1.25x surcharge)
+    end
+
+    Note over API,Engine: 3. Dynamic Reasoning & Constrained Generation
+    API->>Engine: Evaluate Output Config (Effort Level: low|medium|high|xhigh|max)
+    Engine->>Engine: Generate Extended Thinking Tokens (Hidden/Visible CoT)
+    Engine->>Engine: Compute Cryptographic Signature for Thinking Block
+    Engine->>Engine: Constrained Decoding (CFG Grammar Masking or Strict Tool Schema)
+
+    Note over API,Client: 4. SSE Streaming Delivery Protocol
+    API-->>Client: event: message_start {message: {id: "msg_...", model: "claude-sonnet-5-5", role: "assistant"}}
+    API-->>Client: event: content_block_start {index: 0, content_block: {type: "thinking", thinking: ""}}
+    API-->>Client: event: content_block_delta {index: 0, delta: {type: "thinking_delta", thinking: "Analyzing constraints..."}}
+    API-->>Client: event: content_block_delta {index: 0, delta: {type: "signature_delta", signature: "c2ln..."}}
+    API-->>Client: event: content_block_stop {index: 0}
+    API-->>Client: event: content_block_start {index: 1, content_block: {type: "text", text: ""}}
+    API-->>Client: event: content_block_delta {index: 1, delta: {type: "text_delta", text: "{\"status\": \"approved\"}", citations: [...]}}
+    API-->>Client: event: content_block_stop {index: 1}
+    API-->>Client: event: message_delta {delta: {stop_reason: "end_turn"}, usage: {output_tokens: 384}}
+    API-->>Client: event: message_stop
+
+    Note over Client: 5. Client Unpacking & Multi-Turn Preservation
+    Client->>Client: Parse Structured Output -> response.parsed_output
+    Client->>Client: Extract Document Citations (char_location / page_location, 0 billable output tokens)
+    Client->>Client: Preserve thinking block byte-for-byte in conversation history for turn N+1

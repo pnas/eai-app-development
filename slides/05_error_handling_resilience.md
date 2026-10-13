@@ -11,17 +11,18 @@ footer: "Enterprise AI Engineering Course"
 
 ---
 
-# 1. The HTTP Error Taxonomy
+# 1. The HTTP Error Taxonomy & Modern Error Codes
 
 Not all errors are equal. Treating 400 like 429 causes cascading system outages:
 
-| Status Code | Description | Strategy |
+| Status Code / Sub-code | Provider Manifestation | Production Strategy |
 | :--- | :--- | :--- |
-| **`400 Bad Request`** | Invalid param, context length exceeded, content filter | **DO NOT RETRY**. Truncate context or fix payload. |
-| **`401 / 403`** | Missing API key, IAM permission denied | **DO NOT RETRY**. Alert DevOps / rotate key. |
-| **`429 Rate Limit`** | TPM / RPM / RPD quota exceeded | **RETRY with Jittered Backoff** or switch provider. |
-| **`500 / 503`** | Provider internal server error | **RETRY with Backoff** up to 3 times. |
-| **`529 Overloaded`** | Anthropic infrastructure capacity exceeded | **RETRY with Backoff** or cascade to secondary. |
+| **`400 Bad Request`** | Invalid param, schema mismatch, or Anthropic sampling constraint violations | **DO NOT RETRY**. Fix payload according to provider capability matrix. |
+| **`401 / 403`** | Missing API key, IAM permission denied | **DO NOT RETRY**. Alert DevOps / rotate credentials. |
+| **`429 slow_down`** | OpenAI TPM / RPM quota exceeded; Anthropic rate limit | **RETRY with Jittered Backoff** or obey `retry-after` header. |
+| **`429 resource_unavailable`** | OpenAI Flex Processing transient capacity constraint | **RETRY with Backoff** or cascade to standard sync tier. |
+| **`500 Internal Error`** | Transient gateway or backend failure | **RETRY with Backoff** up to 3 times. |
+| **`503 server_is_overloaded` / `529`** | OpenAI cluster capacity shortage or Anthropic overloaded | **CASCADE IMMEDIATELY** to secondary provider (do not wait). |
 
 ---
 
@@ -37,7 +38,7 @@ Clients:     1,000 reqs ────────► 1,000 retries ──► 1,00
 
 $$t = \text{random}(0, \min(\text{max\_backoff}, \text{base} \cdot 2^{\text{attempt}}))$$
 
-Randomizing the sleep duration distributes retries smoothly across the timeline, allowing provider clusters to recover without being hammered simultaneously.
+Randomizing the sleep duration distributes retries smoothly across the timeline, allowing provider clusters to recover without being hammered simultaneously. Obey the `retry-after` header if present.
 
 ---
 
@@ -70,15 +71,17 @@ Prevent downstream services from wasting resources when a provider has an outage
 
 Design your architecture to survive single-provider outages:
 
-1. **Primary**: Claude 3.5 Sonnet (Superior coding / reasoning).
-2. **Secondary**: GPT-4o (High availability, similar tool calling format).
-3. **Tertiary**: Gemini 1.5 Flash (Ultra-low latency, massive 1M context buffer).
+1. **Primary**: OpenAI GPT-6.1 Sol (`gpt-6.1-sol` - Balanced reasoning, explicit caching & Responses API).
+2. **Secondary**: Claude Sonnet 5.5 (`claude-sonnet-5-5` - Superior coding, strict tool schemas & reasoning).
+3. **Tertiary**: OpenAI GPT-4.1 (`gpt-4.1` - Fast non-reasoning fallback with speculative decoding).
+4. **Quaternary**: Gemini 2.5 Flash (`gemini-2.5-flash` - Ultra-low latency, massive context buffer).
 
 ```python
 cascade = FallbackCascade([
-    ClaudeClient(model="claude-3-5-sonnet"),
-    OpenAIClient(model="gpt-4o"),
-    GeminiClient(model="gemini-1.5-flash")
+    OpenAIClient(model="gpt-6.1-sol"),
+    ClaudeClient(model="claude-sonnet-5-5"),
+    OpenAIClient(model="gpt-4.1"),
+    GeminiClient(model="gemini-2.5-flash")
 ])
 response = cascade.execute(prompt)
 ```
@@ -143,4 +146,79 @@ Combine durability with safety gates before dangerous or irreversible actions:
 * Graph stops execution using `interrupt_before=["refund_tool"]`.
 * Compliance officer inspects `app.get_state(config)`.
 * Officer approves: `app.invoke(None, config)` resumes exactly where it paused.
+
+---
+
+# 8. Enterprise LLM Rate Limiting Architecture (WSO2 AI Gateway)
+
+Why traditional API rate limiting (HTTP requests/sec) fails for Generative AI workloads:
+
+```
+Traditional API Gateway:  [ Request 1 ] = 1 unit  |  [ Request 2 ] = 1 unit  (Uniform payload/compute)
+LLM / GenAI Gateway:      [ "Hi" (5 tokens) ] vs  [ 100k Token Doc Ingestion + 4k Gen ] (20,000x cost disparity!)
+```
+
+### The Three Rate-Limiting Dimensions:
+1. **Token Quotas (TPM / TPD)**:
+   - **Prompt Token Limit**: Rejects massive payload spam before GPU allocation.
+   - **Completion Token Limit**: Limits runaway generation loops and recursive chains.
+   - **Total Token Count**: Cumulative window cap (sliding window or leaky bucket).
+2. **Cost-Based Quotas ($/window)**:
+   - Direct USD spend caps per hour/day calculated in-flight from provider pricing models.
+3. **Concurrency & In-Flight Slots**:
+   - Long-lived Server-Sent Event (SSE) streams occupy gateway worker threads and upstream sockets.
+
+---
+
+# 9. Token Bucket, Leaky Bucket & GCRA Algorithms
+
+How AI Gateways enforce granular token-aware traffic shaping:
+
+* **Token Bucket**:
+  - Capacity $B$ tokens; continuous refill at rate $r$ tokens/sec.
+  - Accommodates short bursts while enforcing a strict long-term rate ceiling.
+  - Request draws $T_{\text{prompt}} + T_{\text{completion}}$ tokens. If insufficient: returns `HTTP 429`.
+* **Leaky Bucket / Sliding Window**:
+  - Smooths bursty traffic into a constant output rate; sliding logs track exact timestamps to avoid boundary reset spikes.
+* **GCRA (Generic Cell Rate Algorithm)**:
+  - Theoretical Arrival Time (TAT) computation enforces continuous spacing between token bursts without Redis atomic lock thrashing.
+* **Standard Tracking Headers**:
+  ```http
+  X-RateLimit-Limit-Tokens: 100000
+  X-RateLimit-Remaining-Tokens: 34200
+  X-RateLimit-Reset-Tokens: 14s
+  Retry-After: 14
+  ```
+
+---
+
+# 10. Multi-Tier Governance: Department Chargeback & Virtual Keys
+
+Decoupling client applications from upstream provider quota constraints:
+
+```
+[ Team A / Service 1 ] ──(Virtual Key A: 20k TPM, $200/mo)──┐
+                                                             ▼
+[ Team B / Service 2 ] ──(Virtual Key B: 80k TPM, $1000/mo)─► [ WSO2 / Enterprise Gateway ]
+                                                             ▲    │ In-flight Cost Tracking
+[ Team C / Batch Job ] ──(Virtual Key C: Off-peak queue)────┘    │ Header Injection
+                                                                  ▼
+                                                      [ Upstream Foundation Models ]
+                                                      (OpenAI / Anthropic / Gemini)
+```
+
+- **Subscription-Level Isolation**: High-priority interactive customer bots get dedicated token buckets; background indexing jobs are throttled.
+- **Backend Protection vs. Client Quotas**: Gateway throttles clients *before* upstream provider accounts face 429 penalties.
+- **Accurate Chargeback**: Real-time token aggregation per department virtual key.
+
+---
+
+# 11. Official Documentation & References
+
+- **WSO2 LLM Rate Limiting Guide**: https://wso2.com/api-platform/learn/llm-rate-limiting/
+- **WSO2 AI / LLM Gateway Architecture**: https://wso2.com/api-platform/
+- **OpenAI Rate Limits & Tiers**: https://developers.openai.com/api/docs/guides/rate-limits
+- **OpenAI Error Handling & Codes**: https://developers.openai.com/api/docs/guides/error-codes
+- **Anthropic Working with Messages & Errors**: https://platform.claude.com/docs/en/build-with-claude/working-with-messages
+- **Anthropic Effort & Reasoning Controls**: https://platform.claude.com/docs/en/build-with-claude/effort
 

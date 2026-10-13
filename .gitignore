@@ -49,3 +49,7 @@ Thumbs.db
 *.sqlite
 *.sqlite3
 
+*.class
+**/target/*
+.gradle/
+

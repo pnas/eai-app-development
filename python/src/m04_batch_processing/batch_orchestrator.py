@@ -1,7 +1,13 @@
 """Module 4: Enterprise Batch Orchestrator with Dead-Letter Queue (DLQ).
 
-Demonstrates a production architecture for submitting batch tasks, tracking
-execution with exponential backoff, and isolating per-row failures into a DLQ.
+Demonstrates a production architecture for submitting batch tasks across endpoints
+(`/v1/chat/completions` and `/v1/responses`), tracking execution with exponential backoff,
+and isolating per-row failures into a DLQ.
+
+Official References:
+- OpenAI Batch API: https://developers.openai.com/api/docs/guides/batch
+- OpenAI Flex Processing: https://developers.openai.com/api/docs/guides/flex-processing
+- Latency Optimization: https://developers.openai.com/api/docs/guides/latency-optimization
 """
 
 from __future__ import annotations

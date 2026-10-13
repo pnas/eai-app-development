@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import os
-from dotenv import load_dotenv
+from src.langchain_suite.core.env import load_workspace_env
 import anthropic
 import openai
 from google import genai
 
 # Load environment variables from .env
-load_dotenv()
+load_workspace_env()
 
 
 def get_openai_client() -> openai.OpenAI:

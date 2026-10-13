@@ -11,14 +11,16 @@ footer: "Enterprise AI Engineering Course"
 
 ---
 
-# 1. Realtime vs. Batch Processing
+# 1. Realtime, Flex & Batch Processing Compared
 
-| Metric | Realtime API (`/v1/chat/completions`) | Batch API (`/v1/batches`) |
-| :--- | :--- | :--- |
-| **Turnaround SLA** | 500ms – 5 seconds | 24 hours (typically minutes to hours) |
-| **Pricing** | Standard 100% token price | **Flat 50% discount** on all tokens |
-| **Rate Limit Impact** | Consumes strict RPM / TPM quotas | Separate, massive batch quotas |
-| **Ideal Workloads** | Live chatbots, interactive agents | Backfilling, evals, classification, ETL |
+| Dimension | Standard Sync (`service_tier: "default"`) | Flex Processing (`service_tier: "flex"`) | Batch API (`/v1/batches`) |
+| :--- | :--- | :--- | :--- |
+| **API Pattern** | Synchronous REST / SSE | **Synchronous REST / SSE** | Asynchronous JSONL upload |
+| **Turnaround SLA** | Sub-second – 5 seconds | Seconds to minutes (timeout up to 15m) | 24 hours turnaround window |
+| **Pricing** | 100% standard token price | **50% discount** (same as Batch!) | **50% discount** on all tokens |
+| **Quota Impact** | Standard RPM / TPM | Standard or Flex RPM / TPM | Dedicated Batch token queues |
+| **Endpoints** | `/v1/responses`, `/v1/chat/completions` | `/v1/responses`, `/v1/chat/completions` | `/v1/responses`, `/v1/chat/completions` |
+| **Ideal Workloads** | Interactive user-facing chat | Non-blocking synchronous workers, ETL | Massive offline pipelines, bulk evals |
 
 ---
 
@@ -35,8 +37,9 @@ footer: "Enterprise AI Engineering Course"
    (JSONL Stream)                                (Exp. Backoff)
 ```
 
-- Each row in the `.jsonl` input must have a unique `custom_id`.
-- The `custom_id` allows the application to re-correlate outputs back to database records even if completed out of order.
+- Input rows support both `/v1/responses` and `/v1/chat/completions`.
+- Each row in `.jsonl` requires a unique `custom_id` for out-of-order re-correlation.
+- Output contains `output_file_id` (successes) and `error_file_id` (failures).
 
 ---
 
@@ -49,10 +52,10 @@ file_obj = client.files.create(
     purpose="batch"
 )
 
-# 2. Submit Batch Job
+# 2. Submit Batch Job for Responses API or Chat Completions
 batch_job = client.batches.create(
     input_file_id=file_obj.id,
-    endpoint="/v1/chat/completions",
+    endpoint="/v1/responses",  # or "/v1/chat/completions"
     completion_window="24h"
 )
 
@@ -66,7 +69,28 @@ while True:
 
 ---
 
-# 4. Error Handling in Batch Processing
+# 4. Flex Processing: 50% Off Without Asynchronous Pipelines
+
+When tasks don't require an immediate sub-second response, use `service_tier="flex"`:
+
+```python
+# Synchronous call with 50% discount via Flex Processing
+response = client.responses.create(
+    model="gpt-6.1-sol",
+    input="Perform comprehensive analysis of quarterly financial report...",
+    service_tier="flex",
+    timeout=900.0  # Allow up to 15 minutes for flex processing
+)
+```
+
+**Key Engineering Guidelines for Flex Processing**:
+1. **Extend Client Timeouts**: Set HTTP timeouts to 10–15 minutes (default 60s will time out).
+2. **Handle 429 Resource Unavailable**: If flex capacity is temporarily constrained, retry with exponential backoff or fall back to `service_tier: "default"`.
+3. **No File Management Overhead**: Avoids JSONL formatting, S3/OpenAI file uploads, polling loops, and multi-file reconciliation.
+
+---
+
+# 5. Error Handling in Batch Processing
 
 Batch jobs introduce two levels of errors:
 
@@ -79,4 +103,13 @@ Batch jobs introduce two levels of errors:
    - Inspected via the separate `error_file_id` output stream.
 
 **Production Pattern**: Always inspect both `output_file_id` and `error_file_id`, and push failed rows to a Dead-Letter Queue (DLQ).
+
+---
+
+# 6. Official Documentation & References
+
+- **OpenAI Batch API Guide**: https://developers.openai.com/api/docs/guides/batch
+- **OpenAI Flex Processing Guide**: https://developers.openai.com/api/docs/guides/flex-processing
+- **OpenAI Latency Optimization**: https://developers.openai.com/api/docs/guides/latency-optimization
+
 

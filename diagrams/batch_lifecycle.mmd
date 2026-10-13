@@ -1,4 +1,3 @@
-```mermaid
 sequenceDiagram
     autonumber
     actor Engineer as Application / Pipeline
@@ -6,17 +5,23 @@ sequenceDiagram
     participant Storage as File / Batch Store
     participant Compute as Background Inference Worker
 
-    Note over Engineer,API: 50% Flat Cost Discount Applied to Batch Tokens
+    Note over Engineer,API: 50% Flat Cost Discount Applied to Batch Tokens (Async 24h)<br/>Or use Synchronous Flex Processing (service_tier='flex', 15m timeout)
     Engineer->>Storage: 1. Upload .jsonl Batch Payload (Custom IDs per row)
     Storage-->>Engineer: File ID (file-xyz)
     
-    Engineer->>API: 2. Create Batch Job (file_id, endpoint="/v1/chat/completions", completion_window="24h")
+    Engineer->>API: 2. Create Batch Job (file_id, endpoint="/v1/responses" or "/v1/chat/completions", completion_window="24h")
     API-->>Engineer: Batch Job Object (id="batch-123", status="validating")
+    
+    API->>Compute: Dispatch batch to off-peak capacity queue
+    Compute->>Storage: Read input file (file-xyz)
 
     loop Polling Loop (Exponential Backoff with Jitter: 15s -> 60s -> 300s)
         Engineer->>API: 3. Retrieve Batch Status (id="batch-123")
         API-->>Engineer: Status Update ("in_progress", completed_count=42, total=100)
     end
+
+    Compute->>Storage: Write output lines & errors (file-out-999)
+    Compute-->>API: Mark batch job as completed
 
     API-->>Engineer: Status = "completed" (output_file_id="file-out-999", error_file_id=null)
     
@@ -26,5 +31,3 @@ sequenceDiagram
     rect rgb(240, 248, 255)
         Note over Engineer: 5. Re-correlate by custom_id & handle per-row failures / safety flags
     end
-```
-

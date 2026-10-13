@@ -12,28 +12,39 @@ during database backups. The team estimates running costs around $4,200/month.
 
 async function extractWithOpenAIStrict(): Promise<SystemArchitectureSpec> {
   const client = getOpenAIClient();
+  const models = ["gpt-4.1-mini", "gpt-4.1", "gpt-4o-2024-08-06"];
+  let lastError: unknown;
 
-  console.log(pc.cyan("Sending request to OpenAI with zodResponseFormat strict grammar..."));
-  const completion = await client.beta.chat.completions.parse({
-    model: "gpt-4o-2024-08-06",
-    messages: [
-      { role: "system", content: "You are a Principal Cloud Systems Architect." },
-      { role: "user", content: ARCH_PROMPT },
-    ],
-    response_format: zodResponseFormat(SystemArchitectureSpecSchema, "systemArchitectureSpec"),
-  });
+  for (const model of models) {
+    try {
+      console.log(pc.cyan(`Sending request to OpenAI (${model}) with zodResponseFormat strict grammar...`));
+      const completion = await client.beta.chat.completions.parse({
+        model,
+        messages: [
+          { role: "system", content: "You are a Principal Cloud Systems Architect." },
+          { role: "user", content: ARCH_PROMPT },
+        ],
+        response_format: zodResponseFormat(SystemArchitectureSpecSchema, "systemArchitectureSpec"),
+      });
 
-  const message = completion.choices[0]?.message;
-  if (message?.refusal) {
-    throw new Error(`Model refused: ${message.refusal}`);
+      const message = completion.choices[0]?.message;
+      if (message?.refusal) {
+        throw new Error(`Model refused: ${message.refusal}`);
+      }
+
+      const parsed = message?.parsed;
+      if (!parsed) {
+        throw new Error("Failed to parse structured output");
+      }
+
+      return parsed;
+    } catch (err: any) {
+      console.warn(pc.yellow(`OpenAI call with ${model} failed: ${err.message || err}. Trying next fallback...`));
+      lastError = err;
+    }
   }
 
-  const parsed = message?.parsed;
-  if (!parsed) {
-    throw new Error("Failed to parse structured output");
-  }
-
-  return parsed;
+  throw lastError;
 }
 
 async function main() {

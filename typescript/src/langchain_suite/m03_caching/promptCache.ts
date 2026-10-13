@@ -17,7 +17,7 @@ Upon 3 consecutive dropped BFD packets, the node shifts traffic to the precomput
 Loop-Free Alternate (TI-LFA) backup path within 50ms.
 `.repeat(8);
 
-async function runPromptCacheDemo() {
+export async function runPromptCacheDemo() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     console.log(pc.yellow("Skipping prompt cache demo: ANTHROPIC_API_KEY not defined."));

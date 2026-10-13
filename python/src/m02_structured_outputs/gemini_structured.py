@@ -23,19 +23,53 @@ during database backups. The team estimates running costs around $4,200/month.
 """
 
 
+def get_gemini_clean_schema() -> dict:
+    """Strip additionalProperties from Pydantic schema to comply with Google GenAI API."""
+    import copy
+    schema = copy.deepcopy(SystemArchitectureSpec.model_json_schema())
+
+    def _strip_additional_properties(node):
+        if isinstance(node, dict):
+            node.pop("additionalProperties", None)
+            for value in node.values():
+                _strip_additional_properties(value)
+        elif isinstance(node, list):
+            for item in node:
+                _strip_additional_properties(item)
+
+    _strip_additional_properties(schema)
+    return schema
+
+
 def extract_with_gemini_schema() -> SystemArchitectureSpec:
     client = get_gemini_client()
+    clean_schema = get_gemini_clean_schema()
 
-    console.print("[green]Calling Google Gemini with response_schema=SystemArchitectureSpec...[/green]")
-    response = client.models.generate_content(
-        model="gemini-1.5-flash",
-        contents=ARCH_PROMPT,
-        config=gemini_types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=SystemArchitectureSpec,
-            temperature=0.1,
-        ),
-    )
+    primary_model = "gemini-3.8-flash"
+    fallback_model = "gemini-2.5-flash"
+
+    console.print(f"[green]Calling Google Gemini ({primary_model}) with native response_schema...[/green]")
+    try:
+        response = client.models.generate_content(
+            model=primary_model,
+            contents=ARCH_PROMPT,
+            config=gemini_types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=clean_schema,
+                temperature=0.1,
+            ),
+        )
+    except Exception as err:
+        console.print(f"[yellow]Primary {primary_model} failed ({err}), falling back to {fallback_model}...[/yellow]")
+        response = client.models.generate_content(
+            model=fallback_model,
+            contents=ARCH_PROMPT,
+            config=gemini_types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=clean_schema,
+                temperature=0.1,
+            ),
+        )
 
     if not response.text:
         raise ValueError("Empty response received from Gemini")

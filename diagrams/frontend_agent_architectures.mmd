@@ -1,0 +1,35 @@
+flowchart TB
+    subgraph Pattern_A["Pattern A: Monolithic In-Process (Streamlit Direct)"]
+        direction TB
+        BrowserA["Web Browser (User)"] <==>|WebSocket UI Events| ST_Engine["Streamlit Server (Port 8501)"]
+        subgraph ST_Process["Single Python Process Boundary"]
+            ST_Engine --> WorkerTh["Isolated Worker Thread\n(Private EventLoop & Queue)"]
+            WorkerTh --> AgentA["LangGraph Cyclical Agent\n(create_agent)"]
+            AgentA <--> ToolRegA["Extensible Tool Registry\n• get_current_time\n• get_random_quote"]
+            AgentA --> MemA["In-Memory Checkpointer\n(MemorySaver)"]
+        end
+        AgentA <==>|Provider SDK| LLM_A["LLM Provider\n(OpenAI / Anthropic / Gemini / Mock)"]
+    end
+
+    subgraph Pattern_B["Pattern B: Decoupled Microservice (FastAPI + SSE)"]
+        direction TB
+        BrowserB["Web Browser (User)"] <==>|WebSocket UI Events| ST_FE["Streamlit Frontend (Port 8501)"]
+        ST_FE <==>|"HTTP POST /agent/chat/stream\n(text/event-stream SSE)"| APIGW["FastAPI Microservice (Port 8000)"]
+        subgraph Backend_Process["Independent Microservice Process Boundary"]
+            APIGW --> SSERunner["SSE Lifecycle Streamer\n(TokenEvent, ToolStart, ToolEnd)"]
+            SSERunner --> AgentB["LangGraph Cyclical Agent\n(create_agent)"]
+            AgentB <--> ToolRegB["Extensible Tool Registry\n• get_current_time\n• get_random_quote"]
+            AgentB --> MemB["Persistent Checkpointer\n(SQLite / Redis / Postgres)"]
+        end
+        AgentB <==>|Provider SDK| LLM_B["LLM Provider\n(OpenAI / Anthropic / Gemini / Mock)"]
+    end
+
+    classDef procA fill:#e1f5fe,stroke:#0288d1,stroke-width:2px;
+    classDef procB fill:#e8f5e9,stroke:#388e3c,stroke-width:2px;
+    classDef llm fill:#fff3e0,stroke:#f57c00,stroke-width:2px;
+    classDef browser fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px;
+
+    class ST_Process procA;
+    class Backend_Process procB;
+    class LLM_A,LLM_B llm;
+    class BrowserA,BrowserB browser;
