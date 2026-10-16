@@ -24,6 +24,11 @@ from rich.panel import Panel
 import openai
 from src.m01_paradigms.client_factory import get_openai_client
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 console = Console()
 
 
@@ -72,16 +77,63 @@ def run_reasoning_response(
     # Extract output text and reasoning summaries
     output_text = ""
     reasoning_summary = ""
+
+    def _extract_text_content(content_data: Any) -> str:
+        if not content_data:
+            return ""
+        if isinstance(content_data, str):
+            return content_data
+        if isinstance(content_data, list):
+            chunks: list[str] = []
+            for part in content_data:
+                if isinstance(part, str):
+                    chunks.append(part)
+                elif hasattr(part, "text"):
+                    chunks.append(getattr(part, "text", "") or "")
+                elif isinstance(part, dict):
+                    chunks.append(part.get("text", "") or "")
+            return "".join(chunks)
+        if hasattr(content_data, "text"):
+            return getattr(content_data, "text", "") or ""
+        return ""
+
     if hasattr(response, "output") and response.output:
         for item in response.output:
-            if getattr(item, "type", "") == "message":
+            item_type = getattr(item, "type", "")
+            if item_type == "message":
                 for content_part in getattr(item, "content", []):
-                    if getattr(content_part, "type", "") == "text":
-                        output_text += getattr(content_part, "text", "")
-            elif getattr(item, "type", "") == "reasoning":
-                reasoning_summary += getattr(item, "summary", "")
+                    part_type = getattr(content_part, "type", "")
+                    if part_type in ("output_text", "text") or hasattr(content_part, "text"):
+                        text_val = getattr(content_part, "text", "")
+                        if isinstance(text_val, str):
+                            output_text += text_val
+            elif item_type == "reasoning":
+                summary_text = _extract_text_content(getattr(item, "summary", None))
+                if summary_text:
+                    reasoning_summary += summary_text
+                else:
+                    # Fallback to reasoning content parts if summary is empty
+                    reasoning_summary += _extract_text_content(getattr(item, "content", None))
+
+    # Fallback to response.output_text property if available and not yet set
+    if not output_text and hasattr(response, "output_text") and isinstance(response.output_text, str):
+        output_text = response.output_text
 
     usage = getattr(response, "usage", None)
+    out_details = getattr(usage, "output_tokens_details", None) if usage else None
+    in_details = getattr(usage, "input_tokens_details", None) if usage else None
+
+    reasoning_tokens = (
+        getattr(out_details, "reasoning_tokens", 0)
+        if out_details
+        else (out_details.get("reasoning_tokens", 0) if isinstance(out_details, dict) else 0)
+    )
+    cached_tokens = (
+        getattr(in_details, "cached_tokens", 0)
+        if in_details
+        else (in_details.get("cached_tokens", 0) if isinstance(in_details, dict) else 0)
+    )
+
     return {
         "id": getattr(response, "id", ""),
         "model": getattr(response, "model", model),
@@ -92,8 +144,8 @@ def run_reasoning_response(
         "usage": {
             "input_tokens": getattr(usage, "input_tokens", 0) if usage else 0,
             "output_tokens": getattr(usage, "output_tokens", 0) if usage else 0,
-            "reasoning_tokens": getattr(getattr(usage, "output_tokens_details", None), "reasoning_tokens", 0) if usage else 0,
-            "cached_tokens": getattr(getattr(usage, "input_tokens_details", None), "cached_tokens", 0) if usage else 0,
+            "reasoning_tokens": reasoning_tokens,
+            "cached_tokens": cached_tokens,
         },
     }
 
@@ -129,17 +181,14 @@ def stream_reasoning_response(
     console.print("[bold]Streaming event stream:[/bold]")
     for event in stream:
         event_type = getattr(event, "type", "")
+        delta = getattr(event, "delta", None)
+        if not delta:
+            continue
+        text = delta if isinstance(delta, str) else getattr(delta, "text", str(delta))
         if "reasoning" in event_type:
-            delta = getattr(event, "delta", "")
-            sys.stdout.write(f"[italic dim]{delta}[/italic dim]")
-            sys.stdout.flush()
+            console.print(f"[italic dim]{text}[/italic dim]", end="")
         elif "output" in event_type or "text" in event_type:
-            delta = getattr(event, "delta", "")
-            if isinstance(delta, str):
-                sys.stdout.write(delta)
-            elif hasattr(delta, "text"):
-                sys.stdout.write(delta.text)
-            sys.stdout.flush()
+            console.print(text, end="", highlight=False)
     print()
 
 

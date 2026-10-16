@@ -85,16 +85,47 @@ export async function runReasoningResponse(options: {
   let outputText = "";
   let reasoningSummary = "";
 
+  function extractTextContent(contentData: any): string {
+    if (!contentData) return "";
+    if (typeof contentData === "string") return contentData;
+    if (Array.isArray(contentData)) {
+      return contentData
+        .map((part) => {
+          if (typeof part === "string") return part;
+          if (part && typeof part === "object") return part.text ?? "";
+          return "";
+        })
+        .join("");
+    }
+    if (typeof contentData === "object" && contentData.text) {
+      return contentData.text;
+    }
+    return "";
+  }
+
   if (response.output && Array.isArray(response.output)) {
     for (const item of response.output) {
       if (item.type === "message" && Array.isArray(item.content)) {
         for (const part of item.content) {
-          if (part.type === "text") outputText += part.text ?? "";
+          if (part.type === "text" || part.type === "output_text" || part.text) {
+            outputText += part.text ?? "";
+          }
         }
       } else if (item.type === "reasoning") {
-        reasoningSummary += item.summary ?? "";
+        const summaryText = extractTextContent(item.summary);
+        if (summaryText) {
+          reasoningSummary += summaryText;
+        } else {
+          // Fallback to reasoning content if summary is empty
+          reasoningSummary += extractTextContent(item.content);
+        }
       }
     }
+  }
+
+  // Fallback to response.output_text property if available and not yet set
+  if (!outputText && typeof response.output_text === "string") {
+    outputText = response.output_text;
   }
 
   const usage = response.usage;
@@ -145,10 +176,11 @@ export async function streamReasoningResponse(
   process.stdout.write("Streaming event stream: ");
   for await (const event of stream) {
     const eventType = event.type || "";
+    const delta = typeof event.delta === "string" ? event.delta : event.delta?.text || "";
+    if (!delta) continue;
     if (eventType.includes("reasoning")) {
-      process.stdout.write(`[thought: ${event.delta || ""}]`);
+      process.stdout.write(`[thought: ${delta}]`);
     } else if (eventType.includes("output") || eventType.includes("text")) {
-      const delta = typeof event.delta === "string" ? event.delta : event.delta?.text || "";
       process.stdout.write(delta);
     }
   }

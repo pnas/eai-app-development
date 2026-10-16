@@ -15,10 +15,13 @@ from rich.panel import Panel
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_anthropic import ChatAnthropic
+from src.langchain_suite.core.env import load_workspace_env
+
+load_workspace_env()
 
 console = Console()
 
-# Large static context to exceed Anthropic's 1024-token prompt caching threshold
+# Large static context to exceed Anthropic Haiku prompt caching threshold (>=2,048 tokens)
 TELECOM_SPECIFICATION_PREFIX = """
 # TELECOMMUNICATIONS NETWORK STANDARD OPERATING PROCEDURES (TS-9021-V4)
 This technical standard defines network fault remediation, optical line diagnostics,
@@ -36,7 +39,7 @@ SECTION 3: ROAMING USER DATA REPLICATION
 Subscriber session state in the Unified Data Management (UDM) cluster replicates across
 three geo-distributed availability zones using Raft consensus. Latency between AZs
 must remain under 8ms round-trip to avoid heartbeat degradation.
-""" * 8  # Repeated to surpass 1024 token threshold
+""" * 16  # Repeated to surpass Haiku 2048 token cache threshold
 
 
 def run_caching_demo() -> None:
@@ -46,11 +49,12 @@ def run_caching_demo() -> None:
         console.print("[yellow]Skipping caching demo: ANTHROPIC_API_KEY not set.[/yellow]")
         return
 
+    model_name = os.getenv("ANTHROPIC_MODEL", "claude-haiku-5-5")
     model = ChatAnthropic(
-        model="claude-3-5-haiku-20241022",
-        temperature=0.0,
+        model=model_name,
         api_key=api_key,
     )
+
 
     # In LangChain, prompt caching breakpoints are declared via content block dictionaries
     # with the 'cache_control': {'type': 'ephemeral'} metadata.
@@ -74,12 +78,17 @@ def run_caching_demo() -> None:
     ]
     response_1 = model.invoke(messages_turn_1)
 
-    usage_1 = response_1.usage_metadata or {}
+    usage_meta_1 = response_1.usage_metadata or {}
+    resp_usage_1 = response_1.response_metadata.get("usage", {})
+    cache_creation_1 = resp_usage_1.get("cache_creation_input_tokens", usage_meta_1.get("cache_creation_input_tokens", 0))
+    cache_read_1 = resp_usage_1.get("cache_read_input_tokens", usage_meta_1.get("cache_read_input_tokens", 0))
+    input_tokens_1 = usage_meta_1.get("input_tokens", resp_usage_1.get("input_tokens", "N/A"))
+
     console.print(Panel(
         f"Response: {response_1.content}\n\n"
-        f"Input Tokens: {usage_1.get('input_tokens', 'N/A')}\n"
-        f"Cache Creation Tokens: [green]{usage_1.get('cache_creation_input_tokens', 0)}[/green]\n"
-        f"Cache Read Tokens: [blue]{usage_1.get('cache_read_input_tokens', 0)}[/blue]",
+        f"Input Tokens: {input_tokens_1}\n"
+        f"Cache Creation Tokens: [green]{cache_creation_1}[/green]\n"
+        f"Cache Read Tokens: [blue]{cache_read_1}[/blue]",
         title="Turn 1: Cache Write (Cold)",
     ))
 
@@ -91,12 +100,17 @@ def run_caching_demo() -> None:
     ]
     response_2 = model.invoke(messages_turn_2)
 
-    usage_2 = response_2.usage_metadata or {}
+    usage_meta_2 = response_2.usage_metadata or {}
+    resp_usage_2 = response_2.response_metadata.get("usage", {})
+    cache_creation_2 = resp_usage_2.get("cache_creation_input_tokens", usage_meta_2.get("cache_creation_input_tokens", 0))
+    cache_read_2 = resp_usage_2.get("cache_read_input_tokens", usage_meta_2.get("cache_read_input_tokens", 0))
+    input_tokens_2 = usage_meta_2.get("input_tokens", resp_usage_2.get("input_tokens", "N/A"))
+
     console.print(Panel(
         f"Response: {response_2.content}\n\n"
-        f"Input Tokens: {usage_2.get('input_tokens', 'N/A')}\n"
-        f"Cache Creation Tokens: [green]{usage_2.get('cache_creation_input_tokens', 0)}[/green]\n"
-        f"Cache Read Tokens: [bold blue]{usage_2.get('cache_read_input_tokens', 0)} (90% Cost Reduction!)[/bold blue]",
+        f"Input Tokens: {input_tokens_2}\n"
+        f"Cache Creation Tokens: [green]{cache_creation_2}[/green]\n"
+        f"Cache Read Tokens: [bold blue]{cache_read_2} (90% Cost Reduction!)[/bold blue]",
         title="Turn 2: Cache Hit (Warm)",
     ))
 

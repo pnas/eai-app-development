@@ -75,13 +75,13 @@ def extract_with_gemini_schema() -> SystemArchitectureSpec:
         raise ValueError("Empty response received from Gemini")
 
     # Validate output string into Pydantic model
-    validated_spec = SystemArchitectureSpec.model_validate_json(response.text)
+    validated_spec : SystemArchitectureSpec = SystemArchitectureSpec.model_validate_json(response.text)
     return validated_spec
 
 
 def main():
     try:
-        spec = extract_with_gemini_schema()
+        spec : SystemArchitectureSpec = extract_with_gemini_schema()
         console.print(Panel(
             f"[bold green]System Name:[/bold green] {spec.system_name}\n"
             f"[bold]Scalability Rating:[/bold] {spec.scalability_rating_1_to_10}/10\n"

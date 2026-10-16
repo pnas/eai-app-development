@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Optional
+from openai import ChatCompletion
 from rich.console import Console
 from rich.table import Table
 
@@ -48,7 +49,7 @@ def call_openai(prompt: str, system_prompt: str) -> NormalizedResponse:
     model = "gpt-4o-mini"
 
     # OpenAI format: Developer/System role + User role in messages array
-    response = client.chat.completions.create(
+    response : ChatCompletion = client.chat.completions.create(
         model=model,
         messages=[
             {"role": "developer", "content": system_prompt},
@@ -62,6 +63,8 @@ def call_openai(prompt: str, system_prompt: str) -> NormalizedResponse:
     reasoning_tok = 0
     if usage and getattr(usage, "completion_tokens_details", None):
         reasoning_tok = getattr(usage.completion_tokens_details, "reasoning_tokens", 0) or 0
+
+    print(choice.message.content)
 
     return NormalizedResponse(
         provider="OpenAI",
@@ -102,6 +105,9 @@ def call_anthropic(prompt: str, system_prompt: str) -> NormalizedResponse:
         elif block.type == "thinking":
             # Count thinking block characters/tokens if available
             reasoning_tok += len(getattr(block, "thinking", "").split())
+
+
+    print(content_text)
 
     return NormalizedResponse(
         provider="Anthropic",
@@ -166,8 +172,8 @@ def main():
 
     for name, caller in providers:
         try:
-            res = caller(query, system)
-            snippet = res.content.replace("\n", " ")[:65] + "..."
+            res : NormalizedResponse = caller(query, system)
+            snippet = res.content #.replace("\n", " ")[:65] + "..."
             table.add_row(
                 res.provider,
                 res.model,

@@ -88,7 +88,7 @@ def demonstrate_fallback_cascade(simulate_failure: bool = True) -> None:
             secondary = HealthyMockModel(provider_name="gpt-4.1-mini (Secondary Fallback)")
 
         try:
-            tertiary = get_chat_model("gemini", "gemini-3.8-flash")
+            tertiary : BaseChatModel = get_chat_model("gemini", "gemini-3.8-flash")
         except Exception:
             tertiary = HealthyMockModel(provider_name="gemini-3.8-flash (Tertiary Fallback)")
 

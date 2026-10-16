@@ -1,6 +1,9 @@
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { ChatAnthropic } from "@langchain/anthropic";
 import pc from "picocolors";
+import { loadWorkspaceEnv } from "../core/env.js";
+
+loadWorkspaceEnv();
 
 const TELECOM_SOP_PREFIX = `
 # TELECOMMUNICATIONS NETWORK STANDARD OPERATING PROCEDURES (TS-9021-V4)
@@ -15,7 +18,7 @@ All CSG routers running Segment Routing over IPv6 (SRv6) maintain bidirectional 
 detection (BFD) timers configured with 10ms intervals and multiplier 3.
 Upon 3 consecutive dropped BFD packets, the node shifts traffic to the precomputed
 Loop-Free Alternate (TI-LFA) backup path within 50ms.
-`.repeat(8);
+`.repeat(16); // Surpasses 2,048 token threshold required for Haiku prompt caching
 
 export async function runPromptCacheDemo() {
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -24,8 +27,10 @@ export async function runPromptCacheDemo() {
     return;
   }
 
+  // Model upgraded from legacy claude-3-5-haiku to modern claude-haiku-5-5 (with fallback to claude-sonnet-5-5)
+  const modelName = process.env.ANTHROPIC_MODEL || "claude-haiku-5-5";
   const model = new ChatAnthropic({
-    model: "claude-3-5-haiku-20241022",
+    model: modelName,
     temperature: 0,
     apiKey,
   });

@@ -69,6 +69,7 @@ def create_agent(
         )
 
     model_with_tools = chat_model.bind_tools(active_tools)
+    
 
     def agent_node(state: MessagesState) -> Dict[str, Any]:
         messages = list(state["messages"])

@@ -21,7 +21,7 @@ STATIC_DOC = """
 Every transaction processed through the billing API must retain immutable audit logs for 7 years.
 Audit trails must include caller identity, IP address, timestamp, HMAC signature, and response code.
 In the event of an audit alert, the compliance officer must be notified via PagerDuty within 15 minutes.
-""" + ("\nAll data pipelines must comply with GDPR Article 17 Right to Erasure.\n" * 45)
+""" + ("\nAll data pipelines must comply with GDPR Article 17 Right to Erasure.\n" * 450)
 
 
 def run_benchmark():

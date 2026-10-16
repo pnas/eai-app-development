@@ -84,7 +84,7 @@ def compare_structured_extraction(
 
     for provider in providers:
         try:
-            res = run_structured_extraction(incident_report, provider=provider)
+            res : TelecomIncidentTriage = run_structured_extraction(incident_report, provider=provider)
             results[provider] = res
             console.print(f"[green]✔ {provider.upper()} extracted:[/green] {res.incident_id} ({res.severity})")
         except Exception as e:

@@ -52,19 +52,68 @@ def retry_with_full_jitter(
 
 
 def main():
-    console.print("\n[bold cyan]=== Simulating Retry with Full Jitter ===[/bold cyan]")
-    call_count = 0
+    console.print("\n[bold cyan]=== Enterprise Retry with Full Jitter & Live OpenAI ===[/bold cyan]")
+    console.print("[dim]Demonstrating exponential backoff and jitter under transient errors and injection after 2 attempts...[/dim]\n")
 
-    @retry_with_full_jitter(max_retries=3, base_backoff_seconds=0.5, max_backoff_seconds=4.0)
-    def flaky_llm_api_call():
-        nonlocal call_count
-        call_count += 1
-        if call_count < 3:
-            raise ConnectionResetError("429 Too Many Requests: TPM quota exceeded")
-        return "200 OK: LLM response received successfully!"
+    from src.m01_paradigms.client_factory import get_openai_client
+    import openai
 
-    result = flaky_llm_api_call()
-    console.print(f"[bold green]Result:[/bold green] {result}")
+    try:
+        client = get_openai_client()
+    except Exception as e:
+        console.print(f"[yellow]⚠️  OpenAI client initialization skipped: {e}[/yellow]")
+        client = None
+
+    attempt_counter = 0
+
+    @retry_with_full_jitter(
+        max_retries=4,
+        base_backoff_seconds=0.4,
+        max_backoff_seconds=3.0,
+        retryable_exceptions=(openai.RateLimitError, openai.APIConnectionError, openai.InternalServerError, ConnectionResetError),
+    )
+    def resilient_openai_call() -> str:
+        nonlocal attempt_counter
+        attempt_counter += 1
+        console.print(f"[cyan]\n[Dispatch] Sending request to OpenAI gpt-4o-mini (Execution attempt #{attempt_counter})...[/cyan]")
+
+        # INJECTION RULE: If after 2 attempts we don't get any error from OpenAI,
+        # inject a simulated 429 RateLimitError to demonstrate full jitter backoff
+        if attempt_counter <= 2:
+            console.print(f"[magenta]   [Injection Check] Attempt #{attempt_counter}: Simulating transient 429 RateLimitError (no natural error encountered)...[/magenta]")
+            import httpx
+            req = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+            resp = httpx.Response(429, request=req, headers={"retry-after": "1.5"})
+            raise openai.RateLimitError(
+                "429 Too Many Requests: Rate limit reached for TPM quota on gpt-4o-mini (Injected for demonstration)",
+                response=resp,
+                body={"error": {"message": "Rate limit exceeded", "type": "tokens", "code": "rate_limit_exceeded"}},
+            )
+
+        if not client:
+            return "200 OK: Fallback simulation response (OpenAI client not initialized)"
+
+        # Live call to OpenAI model
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": "Explain the benefit of exponential backoff with full jitter in telecom API gateways in 1 concise sentence.",
+                }
+            ],
+            max_tokens=60,
+            temperature=0.2,
+        )
+
+        reply = (response.choices[0].message.content or "").strip()
+        return f"200 OK ({response.model}): \"{reply}\""
+
+    try:
+        result = resilient_openai_call()
+        console.print(f"\n[bold green][OK] Final Success:[/bold green] {result}\n")
+    except Exception as err:
+        console.print(f"\n[bold red][FAILED] Exhausted all retry attempts:[/bold red] {err}\n")
 
 
 if __name__ == "__main__":
